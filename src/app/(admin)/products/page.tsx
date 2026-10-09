@@ -108,13 +108,12 @@ export default async function ProductsPage({
               <tr>
                 <th className="px-6 py-4">Priority (Drag)</th>
                 <th className="px-6 py-4">Product Info</th>
-                <th className="px-6 py-4">Type & Variant</th>
                 <th className="px-6 py-4">Pricing</th>
                 <th className="px-6 py-4 text-center">Badges</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <ProductTableBody initialProducts={products} />
+            <ProductTableBody key={page + q + sort} initialProducts={products} />
           </table>
         </div>
 

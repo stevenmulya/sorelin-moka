@@ -17,6 +17,21 @@ export default async function NewTransactionPage() {
     orderBy: { name: 'asc' },
     include: { images: { take: 1 }, type: true }
   });
+  const activeShift = await prisma.shift.findFirst({
+    where: { status: 'Open' }
+  });
+
+  if (!activeShift) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 text-center py-20">
+        <h1 className="text-2xl font-bold text-gray-900">Shift is Closed</h1>
+        <p className="text-gray-500">You must open a shift before you can make transactions.</p>
+        <Link href="/shift" className="inline-block mt-4 px-6 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800">
+          Go to Shift Management
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

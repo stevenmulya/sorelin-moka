@@ -47,7 +47,7 @@ model Product {
 model InventoryLog {
   id        Int      @id @default(autoincrement())
   productId Int
-  product   Product  @relation(fields: [productId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   type      String   // "IN", "OUT", "RESET"
   quantity  Int
   giver     String?
@@ -63,6 +63,23 @@ model Expense {
   startDate DateTime
   endDate   DateTime
   createdAt DateTime @default(now())
+
+  shiftId   Int?
+  shift     Shift?   @relation(fields: [shiftId], references: [id])
+}
+
+model Shift {
+  id           Int      @id @default(autoincrement())
+  startTime    DateTime @default(now())
+  endTime      DateTime?
+  status       String   @default("Open") // Open, Closed
+  initialCash  Int      @default(0)
+  expectedCash Int?
+  actualCash   Int?
+  openedBy     String
+  closedBy     String?
+  transactions Transaction[]
+  expenses     Expense[]
 }
 
 model Transaction {
@@ -74,6 +91,9 @@ model Transaction {
   status        String   @default("Waiting Payment")
   cashierName   String?
   paidAmount    Int?
+  paymentMethod String?
+  selfieUrl     String?
+  cancelReason  String?
   
   preparedAt    DateTime?
   readyAt       DateTime?
@@ -81,6 +101,9 @@ model Transaction {
   
   createdAt     DateTime @default(now())
   items         TransactionItem[]
+
+  shiftId       Int?
+  shift         Shift?   @relation(fields: [shiftId], references: [id])
 }
 
 model TransactionItem {

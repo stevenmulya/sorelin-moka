@@ -88,10 +88,6 @@ export default function ProductTableBody({ initialProducts }: { initialProducts:
             </div>
           </td>
           <td className="px-6 py-4">
-            <div className="text-gray-900 font-medium">{product.type?.name || '-'}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{product.variant?.name || '-'}</div>
-          </td>
-          <td className="px-6 py-4">
             {product.discountPrice ? (
               <div>
                 <div className="text-gray-900 font-medium">Rp {product.discountPrice.toLocaleString('id-ID')}</div>

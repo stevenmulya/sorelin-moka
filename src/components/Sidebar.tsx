@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Package, History, ClipboardList, Users, Settings, LogOut, PieChart, Menu, X } from "lucide-react";
+import { LayoutDashboard, Package, History, ClipboardList, Users, Wallet, LogOut, PieChart, Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 export default function Sidebar() {
@@ -11,10 +11,12 @@ export default function Sidebar() {
 
   const links = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Insights', href: '/insights', icon: PieChart },
+    { name: 'Transactions', href: '/transactions', icon: History },
+    { name: 'Expenses', href: '/expenses', icon: Wallet },
+    { name: 'Report', href: '/report', icon: PieChart },
+    { name: 'Shifts History', href: '/shifts', icon: History },
     { name: 'Products', href: '/products', icon: Package },
     { name: 'Inventory', href: '/inventory', icon: ClipboardList },
-    { name: 'Transactions', href: '/transactions', icon: History },
     { name: 'Customers', href: '/customers', icon: Users },
   ];
 
@@ -62,10 +64,6 @@ export default function Sidebar() {
           })}
         </nav>
         <div className="p-4 border-t border-gray-200 space-y-1">
-          <Link href="#" className="flex items-center gap-3 px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md font-medium text-sm transition-colors">
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
           <Link href="#" className="flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-md font-medium text-sm transition-colors">
             <LogOut className="h-4 w-4" />
             Log out

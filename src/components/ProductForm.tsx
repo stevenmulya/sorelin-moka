@@ -19,6 +19,32 @@ type Product = {
 export default function ProductForm({ initialData }: { initialData?: Product }) {
   const isEditing = !!initialData?.id;
   
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const formData = new FormData(e.currentTarget);
+    const costPrice = Number(formData.get('costPrice'));
+    const price = Number(formData.get('price'));
+    const discountPrice = formData.get('discountPrice') ? Number(formData.get('discountPrice')) : null;
+
+    if (costPrice >= price) {
+      e.preventDefault();
+      alert("Error: Harga Jual (Selling Price) harus lebih besar dari Harga Modal (Cost Price)!");
+      return;
+    }
+
+    if (discountPrice !== null) {
+      if (discountPrice >= price) {
+        e.preventDefault();
+        alert("Error: Harga Diskon harus lebih kecil dari Harga Jual asli!");
+        return;
+      }
+      if (discountPrice <= costPrice) {
+        e.preventDefault();
+        alert("Error: Harga Diskon tidak boleh lebih kecil atau sama dengan Harga Modal (Rugi)!");
+        return;
+      }
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -34,7 +60,7 @@ export default function ProductForm({ initialData }: { initialData?: Product }) 
         </div>
       </div>
 
-      <form action={isEditing ? updateProduct : createProduct} className="space-y-6">
+      <form onSubmit={handleSubmit} action={isEditing ? updateProduct : createProduct} className="space-y-6">
         {isEditing && <input type="hidden" name="id" value={initialData.id} />}
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

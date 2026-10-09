@@ -10,3 +10,26 @@
     color: #111827; /* text-gray-900 */
   }
 }
+
+@media print {
+  /* Hide everything by default on print */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Show only the printable receipt */
+  #printable-receipt, #printable-receipt * {
+    visibility: visible;
+  }
+  
+  /* Position it perfectly at the top left of the paper */
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 58mm; /* Thermal printer width */
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+  }
+}

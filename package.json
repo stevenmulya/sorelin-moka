@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.52.0",
@@ -19,7 +21,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@prisma/client": "^5.22.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -30,6 +26,23 @@ export async function GET(request: Request) {
   } else if (preset === 'all') {
     startDate = new Date(2000, 0, 1);
     endDate = new Date(2100, 0, 1);
+  } else if (preset === 'week') {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+  } else if (preset === 'month') {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+  } else if (preset === 'today') {
+    startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
   } else {
     if (startParam) startDate = new Date(startParam);
     startDate.setHours(0, 0, 0, 0);
@@ -88,8 +101,11 @@ export async function GET(request: Request) {
     
     const trxGrossProfit = trx.amount - trxCogs;
     
-    totalGross += trx.amount;
-    totalCogs += trxCogs;
+    const isPaid = trx.status !== 'Cancelled' && trx.status !== 'Waiting Payment';
+    if (isPaid) {
+      totalGross += trx.amount;
+      totalCogs += trxCogs;
+    }
 
     rows.push({
       "Transaction ID": trx.id,

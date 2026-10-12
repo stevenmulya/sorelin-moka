@@ -19,9 +19,17 @@ export default function KioskFlow({ products }: { products: any[] }) {
   const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   const addToCart = (product: any) => {
+    if (product.stock <= 0) {
+      alert(`Maaf, stok ${product.name} sedang habis!`);
+      return;
+    }
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
+        if (existing.quantity >= product.stock) {
+          alert(`Maaf, stok ${product.name} hanya tersisa ${product.stock}`);
+          return prev;
+        }
         return prev.map((item) =>
           item.product.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -152,21 +160,37 @@ export default function KioskFlow({ products }: { products: any[] }) {
         
         <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map(product => (
-              <div key={product.id} onClick={() => addToCart(product)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition-all">
-                <div className="h-40 bg-gray-100 w-full relative">
-                  {product.images?.[0]?.url ? (
-                    <img src={product.images[0].url} className="w-full h-full object-cover" alt={product.name} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
-                  )}
+            {products.map(product => {
+              const isOutOfStock = product.stock <= 0;
+              return (
+                <div 
+                  key={product.id} 
+                  onClick={() => !isOutOfStock && addToCart(product)} 
+                  className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all relative ${
+                    isOutOfStock ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-md'
+                  }`}
+                >
+                  <div className="h-40 bg-gray-100 w-full relative">
+                    {product.images?.[0]?.url ? (
+                      <img src={product.images[0].url} className="w-full h-full object-cover" alt={product.name} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
+                    )}
+                    {isOutOfStock && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <span className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                          Habis
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-bold text-gray-900 line-clamp-2">{product.name}</h3>
+                    <p className="text-emerald-600 font-semibold mt-2">Rp {product.price.toLocaleString('id-ID')}</p>
+                  </div>
                 </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-gray-900 line-clamp-2">{product.name}</h3>
-                  <p className="text-emerald-600 font-semibold mt-2">Rp {product.price.toLocaleString('id-ID')}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </main>
 

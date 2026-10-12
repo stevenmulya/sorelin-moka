@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -49,7 +45,7 @@ export async function GET(request: Request) {
     
     const trxGrossProfit = trx.amount - trxCogs;
     
-    if (trx.status !== 'Cancelled') {
+    if (trx.status !== 'Cancelled' && trx.status !== 'Waiting Payment') {
       totalGross += trx.amount;
       totalCogs += trxCogs;
     }

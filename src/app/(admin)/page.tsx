@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { TrendingUp, Calendar, Wallet, Plus } from "lucide-react";
 import DashboardKanban from '@/components/DashboardKanban';
 import WaitingPaymentWidget from '@/components/WaitingPaymentWidget';
@@ -7,9 +7,6 @@ import Link from 'next/link';
 
 import { connection } from 'next/server';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 

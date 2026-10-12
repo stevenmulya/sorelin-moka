@@ -1,11 +1,8 @@
 import { connection } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import { prisma } from '@/lib/prisma';
 import { Banknote, Plus, Trash2 } from 'lucide-react';
 import { createExpense, deleteExpense } from '@/app/actions';
+
 
 export const instant = false;
 

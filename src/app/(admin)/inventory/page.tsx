@@ -1,12 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import InventoryAdjuster from '@/components/InventoryAdjuster';
 import HistoryWidget from '@/components/HistoryWidget';
 import Link from 'next/link';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 

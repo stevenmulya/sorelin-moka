@@ -1,12 +1,12 @@
-import { PrismaClient } from '@prisma/client';
-import { Printer, Camera, ArrowLeft } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { Camera, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { generateTrxCode } from '@/lib/utils';
+import PrintButton from '@/components/PrintButton';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+export const instant = false;
 
 export default async function PrintReceiptPage({ 
   params,
@@ -31,7 +31,7 @@ export default async function PrintReceiptPage({
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-12">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 print:hidden">
         <Link href="/" className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
           <ArrowLeft className="h-4 w-4 text-gray-600" />
         </Link>
@@ -116,10 +116,8 @@ export default async function PrintReceiptPage({
         </div>
       </div>
 
-      <div className="flex justify-center gap-4 mt-8">
-        <button className="px-6 py-3 bg-gray-900 text-white rounded-lg font-medium text-sm hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2">
-          <Printer className="h-4 w-4" /> Print Now
-        </button>
+      <div className="flex justify-center gap-4 mt-8 print:hidden">
+        <PrintButton />
         <Link href="/" className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors">
           Back to Dashboard
         </Link>

@@ -1,10 +1,7 @@
 import ProductForm from '@/components/ProductForm';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 

@@ -71,12 +71,8 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
 
   const itemsPerPage = 9;
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
-  const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  // Ensure page resets if filter makes it out of bounds
-  if (currentPage > totalPages) {
-    setCurrentPage(totalPages);
-  }
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedProducts = filteredProducts.slice((safeCurrentPage - 1) * itemsPerPage, safeCurrentPage * itemsPerPage);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
@@ -238,8 +234,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                 type="email"
                 id="customerEmail"
                 name="customerEmail"
-                placeholder="Email (Required)"
-                required
+                placeholder="Email (Optional)"
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:bg-white transition-all"
               />
               <input

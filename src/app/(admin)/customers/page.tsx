@@ -1,9 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { Users, Search, ShoppingBag } from 'lucide-react';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 
@@ -18,7 +15,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
     _count: { _all: true },
     _max: { createdAt: true },
     where: {
-      status: { not: 'Cancelled' },
+      status: { in: ['Preparing', 'Ready for Pickup', 'Picked Up', 'Closed'] },
       customer: q ? { contains: q } : undefined
     },
     orderBy: {
@@ -27,11 +24,13 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   });
 
   const customers = customerStats.map(s => ({
-    name: s.customer,
+    name: s.customer || 'Guest',
     totalSpent: s._sum.amount || 0,
     orderCount: s._count._all,
     lastOrder: s._max.createdAt || new Date()
   }));
+
+  const topBuyer = customers.find(c => c.name.toLowerCase() !== 'guest');
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -73,7 +72,11 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">{c.name}</p>
-                      {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-0.5 inline-block">TOP BUYER</span>}
+                      {topBuyer && c.name === topBuyer.name && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-0.5 inline-block">
+                          TOP BUYER
+                        </span>
+                      )}
                     </div>
                   </div>
                 </td>

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { createExpense, deleteExpense } from '@/app/actions';
 import { 
   TrendingUp, 
@@ -16,11 +16,6 @@ import {
 import { connection } from 'next/server';
 import DateFilter from '@/components/DateFilter';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-
-export const instant = false;
 
 export default async function ReportPage({ searchParams }: { searchParams: Promise<{ start?: string, end?: string, preset?: string }> }) {
   await connection();
@@ -47,13 +42,24 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   } else if (preset === 'all') {
     startDate = new Date(2000, 0, 1);
     endDate = new Date(2100, 0, 1);
-  } else if (preset === 'custom') {
-    if (resolvedParams.start) startDate = new Date(resolvedParams.start);
+  } else if (preset === 'week') {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
     startDate.setHours(0, 0, 0, 0);
-    if (resolvedParams.end) endDate = new Date(resolvedParams.end);
+    endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+  } else if (preset === 'month') {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+  } else if (preset === 'today') {
+    startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
   } else {
-    // today, week, month logic from preset strings (already sets start/end params via DateFilter, but if they are missing fallback)
     if (resolvedParams.start) startDate = new Date(resolvedParams.start);
     startDate.setHours(0, 0, 0, 0);
     if (resolvedParams.end) endDate = new Date(resolvedParams.end);
@@ -78,10 +84,10 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
     }
   });
 
-  // 1. FINANCE CALCULATIONS (P&L) - Only fetch selected date's items
+  // 1. FINANCE CALCULATIONS (P&L) - Only fetch paid orders in selected date range
   const todaysTransactions = await prisma.transaction.findMany({
     where: { 
-      status: { not: 'Cancelled' }, 
+      status: { in: ['Preparing', 'Ready for Pickup', 'Picked Up', 'Closed'] }, 
       createdAt: { gte: startDate, lte: endDate } 
     },
     include: { items: true }

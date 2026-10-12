@@ -18,12 +18,11 @@ export default function DateFilter({ defaultStart, defaultEnd, activePreset }: {
   const applyRange = (start: string, end: string, preset: string) => {
     const params = new URLSearchParams(searchParams);
     
-    if (preset !== 'custom') {
-      params.set('preset', preset);
+    params.set('preset', preset);
+    if (preset === 'this_shift' || preset === 'all') {
       params.delete('start');
       params.delete('end');
     } else {
-      params.set('preset', 'custom');
       if (start) params.set('start', start);
       else params.delete('start');
       if (end) params.set('end', end);

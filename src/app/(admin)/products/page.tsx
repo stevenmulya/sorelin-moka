@@ -1,4 +1,5 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { Plus, Search, Edit2, Trash2, Star, Heart, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { deleteProduct, toggleBestSeller, toggleFavorite, movePriorityUp, movePriorityDown } from '@/app/actions';
@@ -6,9 +7,6 @@ import ProductTableBody from '@/components/ProductTableBody';
 
 import HistoryWidget from '@/components/HistoryWidget';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 

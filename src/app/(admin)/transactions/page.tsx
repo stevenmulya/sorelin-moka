@@ -1,12 +1,10 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { Eye, Search, Filter, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import TransactionActions from '@/components/TransactionActions';
 import { generateTrxCode } from '@/lib/utils';
 import Link from 'next/link';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 
@@ -194,7 +192,7 @@ export default async function TransactionsPage({
             </span>
             <div className="flex items-center gap-1">
               <Link
-                href={`?page=${Math.max(1, page - 1)}&sort=${sort}&q=${q}&date=${dateStr}`}
+                href={`?page=${Math.max(1, page - 1)}&sort=${sort}&q=${q}&date=${dateStr}&view=${view}`}
                 className={`p-2 rounded-md ${page === 1 ? 'text-gray-300 pointer-events-none' : 'text-gray-500 hover:bg-gray-100'}`}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -203,7 +201,7 @@ export default async function TransactionsPage({
               {[...Array(totalPages)].map((_, i) => (
                 <Link
                   key={i + 1}
-                  href={`?page=${i + 1}&sort=${sort}&q=${q}&date=${dateStr}`}
+                  href={`?page=${i + 1}&sort=${sort}&q=${q}&date=${dateStr}&view=${view}`}
                   className={`min-w-[32px] h-8 flex items-center justify-center rounded-md text-sm font-medium ${
                     page === i + 1 ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
                   }`}
@@ -213,7 +211,7 @@ export default async function TransactionsPage({
               ))}
 
               <Link
-                href={`?page=${Math.min(totalPages, page + 1)}&sort=${sort}&q=${q}&date=${dateStr}`}
+                href={`?page=${Math.min(totalPages, page + 1)}&sort=${sort}&q=${q}&date=${dateStr}&view=${view}`}
                 className={`p-2 rounded-md ${page === totalPages ? 'text-gray-300 pointer-events-none' : 'text-gray-500 hover:bg-gray-100'}`}
               >
                 <ChevronRight className="h-4 w-4" />

@@ -17,9 +17,9 @@ export default function OrderActions({ id, status }: { id: number, status: strin
             }}
           >
             <input type="hidden" name="id" value={id} />
-            <input type="hidden" name="status" value="Ready" />
+            <input type="hidden" name="status" value="Ready for Pickup" />
             <button type="submit" className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" title="Mark Ready">
-              <CheckCircle2 className="h-4 w-4" /> Ready
+              <CheckCircle2 className="h-4 w-4" /> Ready for Pickup
             </button>
           </form>
 
@@ -44,15 +44,15 @@ export default function OrderActions({ id, status }: { id: number, status: strin
         <form 
           action={updateTransactionStatus} 
           onSubmit={(e) => {
-            if (!confirm('Mark this order as COMPLETED (Picked up by customer)?')) {
+            if (!confirm('Mark this order as PICKED UP by customer?')) {
               e.preventDefault();
             }
           }}
         >
           <input type="hidden" name="id" value={id} />
-          <input type="hidden" name="status" value="Completed" />
-          <button type="submit" className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" title="Complete">
-            <PackageCheck className="h-4 w-4" /> Completed
+          <input type="hidden" name="status" value="Picked Up" />
+          <button type="submit" className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" title="Mark Picked Up">
+            <PackageCheck className="h-4 w-4" /> Picked Up
           </button>
         </form>
       )}

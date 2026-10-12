@@ -41,8 +41,8 @@ export default function InventoryAdjuster({ products }: { products: Product[] })
         {activeTab === 'RESET' && <><RefreshCcw className="h-5 w-5 text-gray-900" /> Form Reset Stock (Opname)</>}
       </h2>
 
-      <form action={(formData) => {
-        adjustStock(formData);
+      <form action={async (formData) => {
+        await adjustStock(formData);
         setActiveTab(null);
       }} className="space-y-4 max-w-2xl">
         <input type="hidden" name="type" value={activeTab} />

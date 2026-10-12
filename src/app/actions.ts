@@ -1,12 +1,9 @@
 'use server'
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
 
 export async function createTransaction(formData: FormData) {
   const customer = formData.get('customer') as string
@@ -159,6 +156,16 @@ export async function cancelTransaction(formData: FormData) {
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } }
         });
+        await prisma.inventoryLog.create({
+          data: {
+            productId: item.productId,
+            type: 'IN',
+            quantity: item.quantity,
+            giver: 'Order Cancellation',
+            receiver: null,
+            notes: `Cancelled order: TRX-${trx.id}${cancelReason ? ` (${cancelReason})` : ''}`
+          }
+        });
       } catch (e) {
         console.error(`Failed to revert stock for product ${item.productId}`);
       }
@@ -171,6 +178,8 @@ export async function cancelTransaction(formData: FormData) {
   });
   
   revalidatePath('/transactions');
+  revalidatePath('/inventory');
+  revalidatePath('/shift');
   revalidatePath('/');
   redirect('/transactions');
 }
@@ -197,6 +206,8 @@ export async function editPaymentMethod(formData: FormData) {
 
   revalidatePath('/transactions');
   revalidatePath(`/transactions/${transactionId}`);
+  revalidatePath('/shift');
+  revalidatePath('/');
 }
 
 export async function createProduct(formData: FormData) {
@@ -300,8 +311,15 @@ async function saveImage(file: File | null): Promise<string | undefined> {
   
   const buffer = Buffer.from(await file.arrayBuffer());
   const filename = Date.now() + '-' + file.name.replaceAll(' ', '_');
-  const filepath = path.join(process.cwd(), 'public', 'uploads', filename);
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
   
+  try {
+    await fs.access(uploadsDir);
+  } catch {
+    await fs.mkdir(uploadsDir, { recursive: true });
+  }
+
+  const filepath = path.join(uploadsDir, filename);
   await fs.writeFile(filepath, buffer);
   return `/uploads/${filename}`;
 }
@@ -311,6 +329,7 @@ export async function toggleBestSeller(formData: FormData) {
   const current = formData.get('current') === 'true';
   await prisma.product.update({ where: { id }, data: { isBestSeller: !current } });
   revalidatePath('/products');
+  revalidatePath('/kiosk');
 }
 
 export async function toggleFavorite(formData: FormData) {
@@ -318,6 +337,7 @@ export async function toggleFavorite(formData: FormData) {
   const current = formData.get('current') === 'true';
   await prisma.product.update({ where: { id }, data: { isFavorite: !current } });
   revalidatePath('/products');
+  revalidatePath('/kiosk');
 }
 
 export async function movePriorityUp(formData: FormData) {
@@ -325,6 +345,7 @@ export async function movePriorityUp(formData: FormData) {
   const priority = Number(formData.get('priority'));
   await prisma.product.update({ where: { id }, data: { priority: priority + 1 } });
   revalidatePath('/products');
+  revalidatePath('/kiosk');
 }
 
 export async function movePriorityDown(formData: FormData) {
@@ -332,6 +353,7 @@ export async function movePriorityDown(formData: FormData) {
   const priority = Number(formData.get('priority'));
   await prisma.product.update({ where: { id }, data: { priority: Math.max(0, priority - 1) } });
   revalidatePath('/products');
+  revalidatePath('/kiosk');
 }
 
 export async function adjustStock(formData: FormData) {
@@ -442,7 +464,7 @@ export async function createExpense(formData: FormData) {
     }
   });
 
-  revalidatePath('/insights');
+  revalidatePath('/report');
   revalidatePath('/expenses');
   revalidatePath('/shift');
   revalidatePath('/');
@@ -451,7 +473,7 @@ export async function createExpense(formData: FormData) {
 export async function deleteExpense(formData: FormData) {
   const id = Number(formData.get('id'));
   await prisma.expense.delete({ where: { id } });
-  revalidatePath('/insights');
+  revalidatePath('/report');
   revalidatePath('/expenses');
   revalidatePath('/shift');
   revalidatePath('/');
@@ -551,12 +573,25 @@ export async function closeShift(formData: FormData) {
 export async function loginAction(formData: FormData) {
   const username = (formData.get('username') as string)?.trim();
   const password = (formData.get('password') as string)?.trim();
+  const isProduction = process.env.NODE_ENV === 'production';
   
   if (username === 'admin' && password === 'sorelin') {
-    (await cookies()).set('auth_role', 'admin', { path: '/', maxAge: 60 * 60 * 24 * 7 });
+    (await cookies()).set('auth_role', 'admin', {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+    });
     return { success: true, role: 'admin' };
   } else if (username === 'customer' && password === 'soretan') {
-    (await cookies()).set('auth_role', 'kiosk', { path: '/', maxAge: 60 * 60 * 24 * 7 });
+    (await cookies()).set('auth_role', 'kiosk', {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+    });
     return { success: true, role: 'kiosk' };
   }
   
@@ -636,14 +671,6 @@ export async function submitKioskOrder(data: {
       }
     }
   });
-
-  // Adjust stock via atomic decrement
-  for (const item of data.items) {
-    await prisma.product.update({
-      where: { id: item.productId },
-      data: { stock: { decrement: item.quantity } }
-    });
-  }
 
   revalidatePath('/transactions');
   revalidatePath('/');

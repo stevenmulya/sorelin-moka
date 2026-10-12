@@ -1,11 +1,8 @@
 import Sidebar from "@/components/Sidebar";
 import ShiftTimer from '@/components/ShiftTimer';
+import { prisma } from '@/lib/prisma';
 
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+export const instant = false;
 
 export default async function AdminLayout({
   children,

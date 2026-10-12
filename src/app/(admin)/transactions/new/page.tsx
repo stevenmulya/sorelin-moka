@@ -1,13 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import CheckoutForm from '@/components/CheckoutForm';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-
 import { connection } from 'next/server';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 

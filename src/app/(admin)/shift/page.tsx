@@ -1,12 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { Wallet, LogIn, LogOut, FileText, AlertCircle } from 'lucide-react';
 import CloseShiftForm from '@/components/CloseShiftForm';
 import { openShift, closeShift } from '@/app/actions';
 import { connection } from 'next/server';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export const instant = false;
 

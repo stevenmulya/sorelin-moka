@@ -37,6 +37,7 @@ export default async function AdminLayout({
                 </span>
                 <Link 
                   href="/shift" 
+                  prefetch={false}
                   className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-sm border bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700 animate-pulse"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -57,6 +58,7 @@ export default async function AdminLayout({
                 
                 <Link 
                   href="/shift" 
+                  prefetch={false}
                   className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-sm border bg-red-50 border-red-200 hover:bg-red-100 text-red-700"
                 >
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>

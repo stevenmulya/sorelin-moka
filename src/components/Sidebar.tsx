@@ -57,6 +57,7 @@ export default function Sidebar() {
               <Link
                 key={link.name}
                 href={link.href}
+                prefetch={false}
                 onClick={() => setIsOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
                   isActive ? 'bg-gray-100 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'

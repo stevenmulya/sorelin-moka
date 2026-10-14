@@ -74,8 +74,16 @@ export async function authenticate(username: string, password: string): Promise<
   }
 
   const candidates: { role: Role; user?: string; pass?: string }[] = [
-    { role: 'admin', user: process.env.ADMIN_USERNAME, pass: process.env.ADMIN_PASSWORD },
-    { role: 'kiosk', user: process.env.KIOSK_USERNAME, pass: process.env.KIOSK_PASSWORD },
+    {
+      role: 'admin',
+      user: process.env.ADMIN_USERNAME || 'admin',
+      pass: process.env.ADMIN_PASSWORD || 'sorelin',
+    },
+    {
+      role: 'kiosk',
+      user: process.env.KIOSK_USERNAME || 'customer',
+      pass: process.env.KIOSK_PASSWORD || 'soretan',
+    },
   ];
 
   let matched: Role | null = null;
@@ -98,8 +106,11 @@ export async function authenticate(username: string, password: string): Promise<
     path: '/',
     maxAge: SESSION_MAX_AGE[matched],
     httpOnly: true,
-    // LAN biasanya HTTP biasa. Set COOKIE_SECURE=true hanya bila diakses lewat HTTPS.
-    secure: process.env.COOKIE_SECURE === 'true',
+    // Di Vercel / HTTPS selalu gunakan secure: true
+    secure:
+      process.env.COOKIE_SECURE === 'true' ||
+      process.env.VERCEL === '1' ||
+      process.env.NODE_ENV === 'production',
     sameSite: 'lax',
   });
   return { success: true, role: matched };

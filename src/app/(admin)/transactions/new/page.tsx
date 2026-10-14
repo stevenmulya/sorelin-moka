@@ -4,18 +4,20 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { connection } from 'next/server';
 
-
 export const instant = false;
 
 export default async function NewTransactionPage() {
   await connection();
-  const products = await prisma.product.findMany({
-    orderBy: { name: 'asc' },
-    include: { images: { take: 1 }, type: true }
-  });
-  const activeShift = await prisma.shift.findFirst({
-    where: { status: 'Open' }
-  });
+  const [products, activeShift] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      include: { images: { take: 1 }, type: true }
+    }),
+    prisma.shift.findFirst({
+      where: { status: 'Open' }
+    })
+  ]);
 
   if (!activeShift) {
     return (

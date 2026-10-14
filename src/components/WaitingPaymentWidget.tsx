@@ -5,7 +5,14 @@ import { Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { generateTrxCode } from '@/lib/utils';
 import Link from 'next/link';
 
-export default function WaitingPaymentWidget({ items }: { items: any[] }) {
+export interface WaitingPaymentItem {
+  id: number;
+  customer?: string | null;
+  amount: number;
+  createdAt: Date | string;
+}
+
+export default function WaitingPaymentWidget({ items }: { items: WaitingPaymentItem[] }) {
   const [expanded, setExpanded] = useState(false);
   const displayItems = expanded ? items.slice(0, 10) : items.slice(0, 5);
 

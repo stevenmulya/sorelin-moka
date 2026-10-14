@@ -1,51 +1,62 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import InventoryAdjuster from '@/components/InventoryAdjuster';
 import HistoryWidget from '@/components/HistoryWidget';
+import Pagination from '@/components/Pagination';
 import Link from 'next/link';
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
-
+import { Search } from 'lucide-react';
+import { LOW_STOCK_THRESHOLD } from '@/lib/constants';
+import { parsePage } from '@/lib/validation';
+import { connection } from 'next/server';
 
 export const instant = false;
 
-export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ q?: string, page?: string, filter?: string }> }) {
+export default async function InventoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string; filter?: string }>;
+}) {
+  await connection();
   const resolvedParams = await searchParams;
-  const q = resolvedParams.q || '';
-  const page = parseInt(resolvedParams.page || '1');
+  const q = resolvedParams.q?.trim() || '';
+  const page = parsePage(resolvedParams.page);
   const filter = resolvedParams.filter || '';
   const take = 9;
   const skip = (page - 1) * take;
 
-  const whereClause: any = {};
+  const whereClause: Prisma.ProductWhereInput = {
+    isActive: true,
+  };
+
   if (q) {
     whereClause.name = { contains: q };
   }
   if (filter === 'low') {
-    whereClause.stock = { lt: 10 }; // both red and yellow
+    whereClause.stock = { lte: LOW_STOCK_THRESHOLD };
   }
 
-  // Find products for dropdown (all of them) for InventoryAdjuster
-  const allProducts = await prisma.product.findMany({
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true, stock: true }
-  });
+  const [allProducts, products, totalProducts, logs] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, stock: true },
+    }),
+    prisma.product.findMany({
+      where: whereClause,
+      orderBy: { name: 'asc' },
+      include: { type: true, variant: true },
+      take,
+      skip,
+    }),
+    prisma.product.count({ where: whereClause }),
+    prisma.inventoryLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { product: { select: { name: true } } },
+    }),
+  ]);
 
-  // Find paginated products for grid
-  const products = await prisma.product.findMany({
-    where: whereClause,
-    orderBy: { name: 'asc' },
-    include: { type: true, variant: true },
-    take,
-    skip
-  });
-
-  const totalProducts = await prisma.product.count({ where: whereClause });
-  const totalPages = Math.ceil(totalProducts / take);
-
-  const logs = await prisma.inventoryLog.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-    include: { product: { select: { name: true } } }
-  });
+  const totalPages = Math.ceil(totalProducts / take) || 1;
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -55,46 +66,57 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       </div>
 
       <HistoryWidget logs={logs} />
-      
+
       <InventoryAdjuster products={allProducts} />
 
       <div>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-3">
             Current Stock
-            <Link 
+            <Link
               href={`/inventory?page=1${q ? `&q=${q}` : ''}${filter === 'low' ? '' : '&filter=low'}`}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filter === 'low' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                filter === 'low'
+                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                  : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
               }`}
             >
               {filter === 'low' ? 'Showing Low Stock' : 'Filter Low Stock'}
             </Link>
           </h2>
-          <form action="/inventory" className="relative w-full sm:w-64">
+          <form action="/inventory" method="GET" className="relative w-full sm:w-64">
             {filter && <input type="hidden" name="filter" value={filter} />}
-            <input 
-              type="text" 
-              name="q" 
-              defaultValue={q} 
-              placeholder="Search products..." 
+            <input
+              type="text"
+              name="q"
+              defaultValue={q}
+              placeholder="Search products..."
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
             />
             <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <button type="submit" className="hidden">Search</button>
+            <button type="submit" className="hidden">
+              Search
+            </button>
           </form>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {products.map((product) => {
-            const isRed = product.stock <= 5;
-            const isYellow = product.stock > 5 && product.stock < 10;
+            const isRed = product.stock <= LOW_STOCK_THRESHOLD;
+            const isYellow = product.stock > LOW_STOCK_THRESHOLD && product.stock <= LOW_STOCK_THRESHOLD * 2;
             const dotColor = isRed ? 'bg-red-500' : isYellow ? 'bg-amber-500' : 'bg-emerald-500';
             const textColor = isRed ? 'text-red-600' : isYellow ? 'text-amber-600' : 'text-gray-900';
-            const borderColor = isRed ? 'border-red-200 bg-red-50/10' : isYellow ? 'border-amber-200 bg-amber-50/10' : 'border-gray-200 bg-white';
+            const borderColor = isRed
+              ? 'border-red-200 bg-red-50/10'
+              : isYellow
+              ? 'border-amber-200 bg-amber-50/10'
+              : 'border-gray-200 bg-white';
 
             return (
-              <div key={product.id} className={`border rounded-xl p-5 shadow-sm hover:border-gray-300 transition-all flex flex-col justify-between ${borderColor}`}>
+              <div
+                key={product.id}
+                className={`border rounded-xl p-5 shadow-sm hover:border-gray-300 transition-all flex flex-col justify-between ${borderColor}`}
+              >
                 <div>
                   <h3 className="font-bold text-gray-900 text-lg">{product.name}</h3>
                   <div className="flex gap-2 mt-2">
@@ -110,9 +132,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                   <span className="text-sm font-medium text-gray-500">Stock Quantity</span>
                   <div className="inline-flex items-center gap-2">
                     <div className={`h-2 w-2 rounded-full ${dotColor}`}></div>
-                    <span className={`text-xl font-bold tracking-tight ${textColor}`}>
-                      {product.stock}
-                    </span>
+                    <span className={`text-xl font-bold tracking-tight ${textColor}`}>{product.stock}</span>
                     <span className="text-sm font-medium text-gray-500">pcs</span>
                   </div>
                 </div>
@@ -126,26 +146,16 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           )}
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <Link 
-              href={`/inventory?page=${Math.max(1, page - 1)}${q ? `&q=${q}` : ''}${filter ? `&filter=${filter}` : ''}`}
-              className={`p-2 rounded-lg border border-gray-300 hover:bg-gray-50 ${page <= 1 ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-600" />
-            </Link>
-            <span className="text-sm font-medium text-gray-700">
-              Page {page} of {totalPages}
-            </span>
-            <Link 
-              href={`/inventory?page=${Math.min(totalPages, page + 1)}${q ? `&q=${q}` : ''}${filter ? `&filter=${filter}` : ''}`}
-              className={`p-2 rounded-lg border border-gray-300 hover:bg-gray-50 ${page >= totalPages ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <ChevronRight className="h-5 w-5 text-gray-600" />
-            </Link>
-          </div>
-        )}
+        <div className="mt-6">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            basePath="/inventory"
+            params={{ q: q || undefined, filter: filter || undefined }}
+            totalItems={totalProducts}
+            pageSize={take}
+          />
+        </div>
       </div>
     </div>
   );

@@ -4,8 +4,9 @@ datasource db {
 }
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  binaryTargets   = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 model ProductType {
@@ -34,6 +35,8 @@ model Product {
   images       ProductImage[]
   isBestSeller Boolean  @default(false)
   isFavorite   Boolean  @default(false)
+  // Soft delete: produk yang "dihapus" disembunyikan, riwayat stok & transaksi tetap utuh
+  isActive     Boolean  @default(true)
   costPrice    Int      @default(0)
   price        Int
   discountPrice Int?
@@ -43,6 +46,10 @@ model Product {
   updatedAt    DateTime @updatedAt
 
   inventoryLogs InventoryLog[]
+
+  @@index([isActive, priority])
+  @@index([typeId])
+  @@index([variantId])
 }
 
 model InventoryLog {
@@ -55,18 +62,25 @@ model InventoryLog {
   receiver  String?
   notes     String?  // Alasan / Komentar
   createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
 }
 
 model Expense {
-  id        Int      @id @default(autoincrement())
-  name      String
-  amount    Int
-  startDate DateTime
-  endDate   DateTime
-  createdAt DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  name          String
+  amount        Int
+  paymentMethod String   @default("Cash") // "Cash", "Transfer", "Owner"
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime @default(now())
 
-  shiftId   Int?
-  shift     Shift?   @relation(fields: [shiftId], references: [id])
+  shiftId       Int?
+  shift         Shift?   @relation(fields: [shiftId], references: [id])
+
+  @@index([shiftId])
+  @@index([createdAt])
 }
 
 model Shift {
@@ -74,6 +88,8 @@ model Shift {
   startTime    DateTime @default(now())
   endTime      DateTime?
   status       String   @default("Open") // Open, Closed
+  // Bernilai 1 hanya saat shift Open, NULL saat Closed. Unique -> DB menolak dua shift Open sekaligus.
+  activeKey    Int?     @unique
   initialCash  Int      @default(0)
   expectedCash Int?
   actualCash   Int?
@@ -81,6 +97,8 @@ model Shift {
   closedBy     String?
   transactions Transaction[]
   expenses     Expense[]
+
+  @@index([status])
 }
 
 model Transaction {
@@ -105,6 +123,11 @@ model Transaction {
 
   shiftId       Int?
   shift         Shift?   @relation(fields: [shiftId], references: [id])
+
+  @@index([status])
+  @@index([shiftId, status])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model TransactionItem {
@@ -116,6 +139,9 @@ model TransactionItem {
   quantity      Int
   price         Int
   costPrice     Int      @default(0)
+
+  @@index([transactionId])
+  @@index([productId])
 }
 
 model ProductImage {
@@ -124,4 +150,6 @@ model ProductImage {
   productId Int
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([productId])
 }

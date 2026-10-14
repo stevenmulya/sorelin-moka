@@ -1,60 +1,61 @@
 'use client';
 
-import { updateTransactionStatus } from '@/app/actions';
+import { cancelTransaction, updateTransactionStatus } from '@/app/actions';
+import ActionForm, { SubmitButton } from '@/components/ActionForm';
 import { CheckCircle2, XCircle, PackageCheck } from 'lucide-react';
 
-export default function OrderActions({ id, status }: { id: number, status: string }) {
+export default function OrderActions({ id, status }: { id: number; status: string }) {
   return (
     <div className="flex items-center gap-2 justify-end">
       {status === 'Preparing' && (
         <>
-          <form 
+          <ActionForm 
             action={updateTransactionStatus} 
-            onSubmit={(e) => {
-              if (!confirm('Mark this order as READY?')) {
-                e.preventDefault();
-              }
-            }}
+            confirmMessage="Mark this order as READY for pickup?"
           >
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="status" value="Ready for Pickup" />
-            <button type="submit" className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" title="Mark Ready">
+            <SubmitButton 
+              pendingText="..."
+              className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
+              title="Mark Ready"
+            >
               <CheckCircle2 className="h-4 w-4" /> Ready for Pickup
-            </button>
-          </form>
+            </SubmitButton>
+          </ActionForm>
 
-          <form 
-            action={updateTransactionStatus}
-            onSubmit={(e) => {
-              if (!confirm('Cancel this order?')) {
-                e.preventDefault();
-              }
-            }}
+          <ActionForm 
+            action={cancelTransaction} 
+            confirmMessage="Cancel this order and revert stock?"
+            reason={{ name: 'cancelReason', message: 'Cancellation reason (required):' }}
           >
-            <input type="hidden" name="id" value={id} />
-            <input type="hidden" name="status" value="Cancelled" />
-            <button type="submit" className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" title="Cancel">
+            <input type="hidden" name="transactionId" value={id} />
+            <SubmitButton 
+              pendingText="..."
+              className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
+              title="Cancel"
+            >
               <XCircle className="h-4 w-4" /> Cancel
-            </button>
-          </form>
+            </SubmitButton>
+          </ActionForm>
         </>
       )}
 
       {status === 'Ready for Pickup' && (
-        <form 
+        <ActionForm 
           action={updateTransactionStatus} 
-          onSubmit={(e) => {
-            if (!confirm('Mark this order as PICKED UP by customer?')) {
-              e.preventDefault();
-            }
-          }}
+          confirmMessage="Mark this order as PICKED UP by customer?"
         >
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="status" value="Picked Up" />
-          <button type="submit" className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" title="Mark Picked Up">
+          <SubmitButton 
+            pendingText="..."
+            className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
+            title="Mark Picked Up"
+          >
             <PackageCheck className="h-4 w-4" /> Picked Up
-          </button>
-        </form>
+          </SubmitButton>
+        </ActionForm>
       )}
     </div>
   );

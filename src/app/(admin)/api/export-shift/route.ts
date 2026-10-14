@@ -1,15 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/auth';
+import { parseInteger } from '@/lib/validation';
+import { formatWibDate } from '@/lib/dates';
+import { PAID_STATUSES } from '@/lib/constants';
 
 export async function GET(request: Request) {
+  try {
+    await requireAdmin();
+  } catch {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const shiftIdParam = searchParams.get('shiftId');
 
-  if (!shiftIdParam) {
-    return new NextResponse('Shift ID is required', { status: 400 });
+  const shiftId = parseInteger(shiftIdParam, { min: 1 });
+  if (!shiftId) {
+    return new NextResponse('Valid Shift ID is required', { status: 400 });
   }
-
-  const shiftId = Number(shiftIdParam);
 
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
@@ -33,7 +42,7 @@ export async function GET(request: Request) {
   
   for (const trx of shift.transactions) {
     const timeStr = trx.createdAt.toLocaleTimeString('id-ID', { hour12: false });
-    const dateStr = trx.createdAt.toLocaleDateString('id-ID');
+    const dateStr = formatWibDate(trx.createdAt);
     
     // Format items as a single string
     const itemsStr = trx.items.map(i => `${i.quantity}x ${i.productName}`).join('; ');
@@ -44,8 +53,9 @@ export async function GET(request: Request) {
     }
     
     const trxGrossProfit = trx.amount - trxCogs;
-    
-    if (trx.status !== 'Cancelled' && trx.status !== 'Waiting Payment') {
+    const isPaid = PAID_STATUSES.includes(trx.status);
+
+    if (isPaid) {
       totalGross += trx.amount;
       totalCogs += trxCogs;
     }
@@ -60,7 +70,7 @@ export async function GET(request: Request) {
       "Items": itemsStr,
       "Gross Revenue": trx.amount,
       "COGS": trxCogs,
-      "Gross Profit": trxGrossProfit
+      "Gross Profit": isPaid ? trxGrossProfit : 0
     });
   }
 
@@ -94,7 +104,7 @@ export async function GET(request: Request) {
   rows.push({ "Transaction ID": "Opened By:", "Date": shift.openedBy });
   rows.push({ "Transaction ID": "Closed By:", "Date": shift.closedBy || '-' });
   rows.push({ "Transaction ID": "Initial Cash:", "Date": shift.initialCash });
-  rows.push({ "Transaction ID": "Actual Cash:", "Date": shift.actualCash || '-' });
+  rows.push({ "Transaction ID": "Actual Cash:", "Date": shift.actualCash !== null ? shift.actualCash : '-' });
   rows.push({});
   rows.push({ "Transaction ID": "FINANCIAL SUMMARY" });
   rows.push({ "Transaction ID": "Total Gross Revenue:", "Date": totalGross });
@@ -126,7 +136,7 @@ export async function GET(request: Request) {
   const buf = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
   const safeOpenedBy = shift.openedBy.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  const dateStr = shift.startTime.toISOString().split('T')[0];
+  const dateStr = formatWibDate(shift.startTime);
   const filename = `shift_export_${safeOpenedBy}_${dateStr}.xlsx`;
 
   return new NextResponse(buf, {

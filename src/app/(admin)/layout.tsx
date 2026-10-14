@@ -1,7 +1,9 @@
+import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import ShiftTimer from '@/components/ShiftTimer';
 import { prisma } from '@/lib/prisma';
-
+import { formatRupiah } from '@/lib/utils';
+import { formatWibDate } from '@/lib/dates';
 export const instant = false;
 
 export default async function AdminLayout({
@@ -25,35 +27,41 @@ export default async function AdminLayout({
             <div className="font-bold text-lg">Sorelin Moka</div>
           </div>
           <div className="hidden md:block">
-            {/* Breadcrumb or Title placeholder */}
+            {/* Title / Brand Info */}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-4 w-full md:w-auto">
             {!activeShift ? (
               <>
                 <span className="hidden sm:inline-block text-sm font-medium text-gray-500">
-                  You haven't started any shift yet
+                  No active cashier shift
                 </span>
-                <a href="/shift" className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-sm border bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700 animate-pulse">
+                <Link 
+                  href="/shift" 
+                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-sm border bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700 animate-pulse"
+                >
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-sm font-semibold">Start Shift</span>
-                </a>
+                  <span className="text-sm font-semibold">Open Shift</span>
+                </Link>
               </>
             ) : (
               <>
                 <div className="hidden lg:flex items-center gap-3 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                  <span>{new Date().toLocaleDateString('id-ID')}</span>
+                  <span>{formatWibDate(new Date())}</span>
                   <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                   <span>Cashier: <span className="font-semibold text-gray-700">{activeShift.openedBy}</span></span>
                   <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                  <span>Modal: <span className="font-semibold text-gray-700">Rp {activeShift.initialCash.toLocaleString('id-ID')}</span></span>
+                  <span>Initial Float: <span className="font-semibold text-gray-700">{formatRupiah(activeShift.initialCash)}</span></span>
                   <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                   <span>Duration: <ShiftTimer startTime={activeShift.startTime} /></span>
                 </div>
                 
-                <a href="/shift" className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-sm border bg-red-50 border-red-200 hover:bg-red-100 text-red-700">
+                <Link 
+                  href="/shift" 
+                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-sm border bg-red-50 border-red-200 hover:bg-red-100 text-red-700"
+                >
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                  <span className="text-sm font-semibold">End Shift</span>
-                </a>
+                  <span className="text-sm font-semibold">Close Shift</span>
+                </Link>
               </>
             )}
           </div>

@@ -20,16 +20,17 @@ function LoginContent() {
     const result = await loginAction(formData);
 
     if (result.success) {
-      if (result.role === 'kiosk') {
-        window.location.href = '/kiosk';
-      } else {
+      const target = (() => {
+        if (result.role === 'kiosk') return '/kiosk';
         const callbackUrl = searchParams.get('callbackUrl');
-        if (callbackUrl && callbackUrl !== '/login') {
-          window.location.href = callbackUrl;
-        } else {
-          window.location.href = '/';
-        }
-      }
+        const isSafe =
+          !!callbackUrl &&
+          /^\/(?![/\\])/.test(callbackUrl) &&
+          !callbackUrl.startsWith('/login');
+        return isSafe ? callbackUrl : '/';
+      })();
+      router.push(target);
+      router.refresh();
     } else {
       setError(result.error || 'Login failed');
       setLoading(false);

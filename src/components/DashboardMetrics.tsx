@@ -103,7 +103,7 @@ export default function DashboardMetrics({
               {activeModal === 'orders' && (
                 <div className="space-y-4 text-sm">
                   <p className="text-gray-600 leading-relaxed">
-                    This is the total count of all transactions generated during this shift that have progressed past the "Waiting Payment" stage. Cancelled or unpaid orders are strictly excluded from this count.
+                    This is the total count of all transactions generated during this shift that have progressed past the &quot;Waiting Payment&quot; stage. Cancelled or unpaid orders are strictly excluded from this count.
                   </p>
                   <div className="flex justify-between font-bold text-gray-900 pt-4 border-t border-gray-100">
                     <span>Valid Orders</span>

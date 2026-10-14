@@ -1,68 +1,36 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/auth';
+import { resolveRange, formatWibDate } from '@/lib/dates';
+import { PAID_STATUSES } from '@/lib/constants';
 
 export async function GET(request: Request) {
+  try {
+    await requireAdmin();
+  } catch {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const startParam = searchParams.get('start');
   const endParam = searchParams.get('end');
+  const presetParam = searchParams.get('preset') || 'this_shift';
 
-  const preset = searchParams.get('preset') || 'this_shift';
+  const activeShift = await prisma.shift.findFirst({
+    where: { status: 'Open' },
+    orderBy: { startTime: 'desc' }
+  });
 
-  let startDate = new Date();
-  let endDate = new Date();
-
-  if (preset === 'this_shift') {
-    const activeShift = await prisma.shift.findFirst({
-      where: { status: 'Open' },
-      orderBy: { startTime: 'desc' }
-    });
-    if (activeShift) {
-      startDate = new Date(activeShift.startTime);
-      endDate = new Date();
-    } else {
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
-    }
-  } else if (preset === 'all') {
-    startDate = new Date(2000, 0, 1);
-    endDate = new Date(2100, 0, 1);
-  } else if (preset === 'week') {
-    startDate = new Date();
-    startDate.setDate(startDate.getDate() - 7);
-    startDate.setHours(0, 0, 0, 0);
-    endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-  } else if (preset === 'month') {
-    startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-    startDate.setHours(0, 0, 0, 0);
-    endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-  } else if (preset === 'today') {
-    startDate = new Date();
-    startDate.setHours(0, 0, 0, 0);
-    endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-  } else {
-    if (startParam) startDate = new Date(startParam);
-    startDate.setHours(0, 0, 0, 0);
-    if (endParam) endDate = new Date(endParam);
-    endDate.setHours(23, 59, 59, 999);
-  }
-
-  if (startDate > endDate && preset !== 'this_shift' && preset !== 'all') {
-    const temp = startDate;
-    startDate = new Date(endDate);
-    startDate.setHours(0,0,0,0);
-    endDate = new Date(temp);
-    endDate.setHours(23,59,59,999);
-  }
+  const range = resolveRange(
+    { preset: presetParam, start: startParam, end: endParam },
+    activeShift ? activeShift.startTime : null
+  );
 
   const transactions = await prisma.transaction.findMany({
     where: {
       createdAt: {
-        gte: startDate,
-        lte: endDate,
+        gte: range.start,
+        lte: range.end,
       },
     },
     include: { items: true },
@@ -70,15 +38,23 @@ export async function GET(request: Request) {
   });
 
   // Calculate OPEX for this range
-  const activeExpenses = await prisma.expense.findMany({
-    where: {
-      createdAt: { gte: startDate, lte: endDate }
-    }
-  });
-  
   let rangeOpex = 0;
-  for (const exp of activeExpenses) {
-    rangeOpex += exp.amount;
+  if (range.preset === 'this_shift' && activeShift) {
+    const shiftExpenses = await prisma.expense.findMany({
+      where: { shiftId: activeShift.id }
+    });
+    for (const exp of shiftExpenses) {
+      rangeOpex += exp.amount;
+    }
+  } else {
+    const activeExpenses = await prisma.expense.findMany({
+      where: {
+        createdAt: { gte: range.start, lte: range.end }
+      }
+    });
+    for (const exp of activeExpenses) {
+      rangeOpex += exp.amount;
+    }
   }
 
   // Generate Excel Data
@@ -89,7 +65,7 @@ export async function GET(request: Request) {
   
   for (const trx of transactions) {
     const timeStr = trx.createdAt.toLocaleTimeString('id-ID', { hour12: false });
-    const dateStr = trx.createdAt.toLocaleDateString('id-ID');
+    const dateStr = formatWibDate(trx.createdAt);
     
     // Format items as a single string
     const itemsStr = trx.items.map(i => `${i.quantity}x ${i.productName}`).join('; ');
@@ -100,8 +76,8 @@ export async function GET(request: Request) {
     }
     
     const trxGrossProfit = trx.amount - trxCogs;
-    
-    const isPaid = trx.status !== 'Cancelled' && trx.status !== 'Waiting Payment';
+    const isPaid = PAID_STATUSES.includes(trx.status);
+
     if (isPaid) {
       totalGross += trx.amount;
       totalCogs += trxCogs;
@@ -117,7 +93,7 @@ export async function GET(request: Request) {
       "Items": itemsStr,
       "Gross Revenue": trx.amount,
       "COGS": trxCogs,
-      "Gross Profit": trxGrossProfit
+      "Gross Profit": isPaid ? trxGrossProfit : 0
     });
   }
 
@@ -128,9 +104,11 @@ export async function GET(request: Request) {
   const totalGrossProfit = totalGross - totalCogs;
   const trueNetProfit = totalGrossProfit - rangeOpex;
 
-  const rangeStr = startDate === endDate ? startDate.toLocaleDateString('id-ID') : `${startDate.toLocaleDateString('id-ID')} - ${endDate.toLocaleDateString('id-ID')}`;
+  const dateStartStr = formatWibDate(range.start);
+  const dateEndStr = formatWibDate(range.end);
+  const rangeDisplayStr = dateStartStr === dateEndStr ? dateStartStr : `${dateStartStr} - ${dateEndStr}`;
   
-  rows.push({ "Transaction ID": "FINANCIAL SUMMARY", "Date": rangeStr });
+  rows.push({ "Transaction ID": "FINANCIAL SUMMARY", "Date": rangeDisplayStr });
   rows.push({ "Transaction ID": "Total Gross Revenue:", "Date": totalGross });
   rows.push({ "Transaction ID": "Total COGS:", "Date": totalCogs });
   rows.push({ "Transaction ID": "Total Gross Profit:", "Date": totalGrossProfit });
@@ -158,10 +136,7 @@ export async function GET(request: Request) {
   ];
 
   const buf = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-  const dateStrStart = startDate.toISOString().split('T')[0];
-  const dateStrEnd = endDate.toISOString().split('T')[0];
-  const filename = `all_transaction_${dateStrStart}_to_${dateStrEnd}.xlsx`;
+  const filename = `all_transaction_${dateStartStr}_to_${dateEndStr}.xlsx`;
 
   return new NextResponse(buf, {
     status: 200,

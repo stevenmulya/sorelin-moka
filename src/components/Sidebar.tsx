@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Package, History, ClipboardList, Users, Wallet, LogOut, PieChart, Menu, X, ChefHat } from "lucide-react";
+import { LayoutDashboard, Package, History, ClipboardList, Users, Wallet, LogOut, PieChart, Menu, X, ChefHat, Clock, Receipt } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/actions";
 
@@ -12,13 +12,14 @@ export default function Sidebar() {
 
   const links = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Kitchen / Orders', href: '/orders', icon: ChefHat },
+    { name: 'Shift Management', href: '/shift', icon: Wallet },
+    { name: 'Kitchen Orders', href: '/orders', icon: ChefHat },
     { name: 'Transactions', href: '/transactions', icon: History },
-    { name: 'Expenses', href: '/expenses', icon: Wallet },
-    { name: 'Report', href: '/report', icon: PieChart },
-    { name: 'Shifts History', href: '/shifts', icon: History },
-    { name: 'Products', href: '/products', icon: Package },
-    { name: 'Inventory', href: '/inventory', icon: ClipboardList },
+    { name: 'Expenses', href: '/expenses', icon: Receipt },
+    { name: 'Business Report', href: '/report', icon: PieChart },
+    { name: 'Shift History', href: '/shifts', icon: Clock },
+    { name: 'Products Menu', href: '/products', icon: Package },
+    { name: 'Stock Inventory', href: '/inventory', icon: ClipboardList },
     { name: 'Customers', href: '/customers', icon: Users },
   ];
 
@@ -27,6 +28,7 @@ export default function Sidebar() {
       <button 
         onClick={() => setIsOpen(true)}
         className="md:hidden fixed top-3 left-4 z-50 p-2 bg-white rounded-md border border-gray-200 shadow-sm"
+        aria-label="Open Menu"
       >
         <Menu className="h-5 w-5 text-gray-700" />
       </button>
@@ -43,7 +45,7 @@ export default function Sidebar() {
       }`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">
           <div className="font-bold text-xl tracking-tight text-gray-900">Sorelin <span className="text-gray-400 font-normal">Moka</span></div>
-          <button onClick={() => setIsOpen(false)} className="md:hidden p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors">
+          <button onClick={() => setIsOpen(false)} className="md:hidden p-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors" aria-label="Close Menu">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -55,8 +57,9 @@ export default function Sidebar() {
               <Link
                 key={link.name}
                 href={link.href}
+                onClick={() => setIsOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
-                  isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  isActive ? 'bg-gray-100 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -72,7 +75,7 @@ export default function Sidebar() {
               className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-md font-medium text-sm transition-colors text-left"
             >
               <LogOut className="h-4 w-4" />
-              Log out
+              Logout
             </button>
           </form>
         </div>

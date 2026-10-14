@@ -45,7 +45,7 @@ export default async function PrintReceiptPage({
         {/* Receipt Header */}
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Sorelin Moka</h2>
-          <p className="text-sm text-gray-500 mt-1">Jl. Contoh Alamat No. 123</p>
+          <p className="text-sm text-gray-500 mt-1">Main Street No. 123</p>
           <div className="border-b-2 border-dashed border-gray-300 my-4"></div>
           <div className="flex justify-between text-xs text-gray-600">
             <span>{trx.createdAt.toLocaleString()}</span>

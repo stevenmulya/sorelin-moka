@@ -1,15 +1,24 @@
 import { prisma } from '@/lib/prisma';
 import OrderActions from '@/components/OrderActions';
+import AutoRefresh from '@/components/AutoRefresh';
 import { ChefHat } from 'lucide-react';
 import { generateTrxCode } from '@/lib/utils';
-
+import StatusBadge from '@/components/StatusBadge';
+import { connection } from 'next/server';
 
 export const instant = false;
 
 export default async function OrdersPage() {
+  await connection();
+  const activeShift = await prisma.shift.findFirst({
+    where: { status: 'Open' },
+    orderBy: { startTime: 'desc' },
+  });
+
   const orders = await prisma.transaction.findMany({
     where: { 
-      status: { in: ['Preparing', 'Ready for Pickup'] } 
+      status: { in: ['Preparing', 'Ready for Pickup'] },
+      shiftId: activeShift ? activeShift.id : -1,
     },
     orderBy: { createdAt: 'asc' },
     include: { items: true }
@@ -17,6 +26,8 @@ export default async function OrdersPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      <AutoRefresh seconds={10} />
+
       <div>
         <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Active Orders (Kitchen)</h1>
         <p className="text-sm text-gray-500 mt-1">Manage orders being prepared or ready for pickup.</p>
@@ -35,12 +46,7 @@ export default async function OrdersPage() {
                 </div>
                 <p className="text-sm text-gray-500 mt-1">Customer: <span className="font-semibold text-gray-900">{order.customer}</span></p>
               </div>
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                order.status === 'Preparing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                'bg-purple-50 text-purple-700 border-purple-200'
-              }`}>
-                {order.status}
-              </span>
+              <StatusBadge status={order.status} />
             </div>
             
             <div className="flex-1">
@@ -48,7 +54,7 @@ export default async function OrdersPage() {
                 <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Order Items</span>
                 {order.items && order.items.length > 0 ? (
                   <ul className="space-y-2">
-                    {order.items.map((item: any) => (
+                    {order.items.map((item) => (
                       <li key={item.id} className="flex justify-between items-start text-sm">
                         <div>
                           <span className="font-bold text-gray-900 mr-2">{item.quantity}x</span>

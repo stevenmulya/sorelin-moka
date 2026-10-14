@@ -1,33 +1,35 @@
 import { prisma } from '@/lib/prisma';
 import KioskFlow from '@/components/KioskFlow';
 import { Store } from 'lucide-react';
-
+import { connection } from 'next/server';
 
 export const instant = false;
 
 export default async function KioskPage() {
+  await connection();
   const activeShift = await prisma.shift.findFirst({
     where: { status: 'Open' },
   });
 
   if (!activeShift) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 bg-amber-100 text-amber-700 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
-          <Store className="w-10 h-10" />
+      <div className="h-[100dvh] bg-[#FAF7F2] flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="w-14 h-14 bg-[#FDF3D8] text-[#8C6418] rounded-2xl flex items-center justify-center mb-4 border border-[#F2DC9B] shadow-xs">
+          <Store className="w-7 h-7" />
         </div>
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Toko Belum Buka</h1>
-        <p className="text-gray-500 max-w-md mb-8 text-lg">
-          Kiosk pemesanan mandiri saat ini belum aktif karena kasir belum membuka shift hari ini. Silakan hubungi staf atau kasir.
+        <h1 className="text-base sm:text-lg font-bold text-[#3B2314] mb-1.5 tracking-tight">Store is Closed</h1>
+        <p className="text-xs sm:text-sm text-[#7A6251] max-w-sm mb-6 leading-relaxed">
+          The self-ordering kiosk is currently unavailable because the cashier shift is not open yet. Please contact our staff.
         </p>
-        <div className="px-6 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 shadow-sm">
-          Status Kasir: <span className="text-amber-600 font-semibold">Shift Closed</span>
+        <div className="px-4 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-full text-xs font-medium text-[#6B5344] shadow-xs">
+          Cashier Status: <span className="text-[#8C6418] font-semibold">Shift Closed</span>
         </div>
       </div>
     );
   }
 
   const products = await prisma.product.findMany({
+    where: { isActive: true },
     include: {
       type: true,
       variant: true,
@@ -38,4 +40,3 @@ export default async function KioskPage() {
 
   return <KioskFlow products={products} />;
 }
-

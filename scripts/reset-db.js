@@ -2,6 +2,16 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.CONFIRM_RESET !== 'YES') {
+    console.error('================================================================');
+    console.error('PERINGATAN KEAMANAN:');
+    console.error('Script ini akan MENGHAPUS SELURUH data transaksi, shift, dan pengeluaran!');
+    console.error('Untuk melanjutkan, jalankan dengan environment variable:');
+    console.error('  CONFIRM_RESET=YES node reset-db.js');
+    console.error('================================================================');
+    process.exit(1);
+  }
+
   console.log('Cleaning transactional data...');
   
   // Delete in order to avoid foreign key constraint errors

@@ -1,14 +1,15 @@
 import { prisma } from '@/lib/prisma';
-import { Wallet, CheckCircle, Clock, Download } from 'lucide-react';
+import { CheckCircle, Clock, Download } from 'lucide-react';
 import { connection } from 'next/server';
-
+import { formatWibDate } from '@/lib/dates';
 
 export const instant = false;
 
 export default async function ShiftsHistoryPage() {
   await connection();
   const allShifts = await prisma.shift.findMany({
-    orderBy: { startTime: 'desc' }
+    orderBy: { startTime: 'desc' },
+    take: 100,
   });
 
   return (
@@ -39,10 +40,10 @@ export default async function ShiftsHistoryPage() {
                   </td>
                 </tr>
               ) : (
-                allShifts.map(s => {
+                allShifts.map((s) => {
                   const isClosed = s.status === 'Closed';
-                  const expected = s.expectedCash || 0;
-                  const actual = s.actualCash || 0;
+                  const expected = s.expectedCash ?? 0;
+                  const actual = s.actualCash ?? 0;
                   const diff = actual - expected;
 
                   return (
@@ -59,9 +60,9 @@ export default async function ShiftsHistoryPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{s.startTime.toLocaleDateString('id-ID')}</div>
+                        <div className="font-medium text-gray-900">{formatWibDate(s.startTime)}</div>
                         <div className="text-xs text-gray-500">
-                          {s.startTime.toLocaleTimeString('id-ID')} - {s.endTime ? s.endTime.toLocaleTimeString('id-ID') : 'Now'}
+                          {s.startTime.toLocaleTimeString()} - {s.endTime ? s.endTime.toLocaleTimeString() : 'Now'}
                         </div>
                       </td>
                       <td className="px-6 py-4 font-medium text-gray-900">{s.openedBy}</td>
@@ -69,7 +70,9 @@ export default async function ShiftsHistoryPage() {
                         {isClosed ? `Rp ${actual.toLocaleString('id-ID')}` : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {!isClosed ? '-' : (
+                        {!isClosed ? (
+                          '-'
+                        ) : (
                           <span className={`font-bold ${diff === 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-blue-600'}`}>
                             {diff > 0 ? '+' : ''} Rp {diff.toLocaleString('id-ID')}
                           </span>
@@ -77,7 +80,10 @@ export default async function ShiftsHistoryPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         {isClosed ? (
-                          <a href={`/api/export-shift?shiftId=${s.id}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors">
+                          <a
+                            href={`/api/export-shift?shiftId=${s.id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors"
+                          >
                             <Download className="h-3.5 w-3.5" /> Export Excel
                           </a>
                         ) : (
@@ -85,7 +91,7 @@ export default async function ShiftsHistoryPage() {
                         )}
                       </td>
                     </tr>
-                  )
+                  );
                 })
               )}
             </tbody>

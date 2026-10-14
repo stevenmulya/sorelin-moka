@@ -5,14 +5,32 @@ import { Printer, X } from 'lucide-react';
 import { generateTrxCode } from '@/lib/utils';
 import { useRouter, usePathname } from 'next/navigation';
 
-export default function PrintReceiptButton({ trx, autoPrint }: { trx: any, autoPrint?: boolean }) {
-  const [isOpen, setIsOpen] = useState(false);
+export interface PrintReceiptItem {
+  id: number;
+  productName: string;
+  quantity: number;
+  price: number;
+}
+
+export interface PrintReceiptTrx {
+  id: number;
+  createdAt: Date | string;
+  customer?: string | null;
+  cashierName?: string | null;
+  selfieUrl?: string | null;
+  amount: number;
+  paidAmount?: number | null;
+  paymentMethod?: string | null;
+  items: PrintReceiptItem[];
+}
+
+export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintReceiptTrx; autoPrint?: boolean }) {
+  const [isOpen, setIsOpen] = useState(Boolean(autoPrint));
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     if (autoPrint) {
-      setIsOpen(true);
       // Clean up URL to remove ?print=true so it doesn't open on reload
       router.replace(pathname || `/transactions/${trx.id}`);
     }
@@ -23,7 +41,6 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: any, autoP
   };
 
   const trxCode = generateTrxCode(trx.id, trx.createdAt, trx.customer);
-  const totalItems = trx.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
 
   return (
     <>
@@ -65,6 +82,7 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: any, autoP
 
                 {trx.selfieUrl && (
                   <div className="mb-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
                       src={trx.selfieUrl} 
                       alt="Customer Selfie" 
@@ -84,7 +102,7 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: any, autoP
 
                 <table className="w-full text-left text-[11px] mb-2">
                   <tbody>
-                    {trx.items.map((item: any) => (
+                    {trx.items.map((item) => (
                       <tr key={item.id}>
                         <td className="align-top py-1">
                           <div>{item.productName}</div>

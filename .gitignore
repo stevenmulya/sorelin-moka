@@ -40,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# runtime data (foto upload, database lokal, backup)
+/uploads/
+/backups/
+/prisma/*.db
+/prisma/*.db-journal
+

@@ -9,12 +9,15 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "start:host": "next start -H 0.0.0.0",
-    "lint": "eslint"
+    "lint": "eslint",
+    "clean:uploads": "tsx scripts/clean-uploads.ts",
+    "db:turso:sync": "tsx scripts/sync-turso.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.8.0",
+    "@prisma/adapter-libsql": "^5.22.0",
     "@prisma/client": "^5.22.0",
     "clsx": "^2.1.1",
-    "date-fns": "^4.4.0",
     "lucide-react": "^1.52.0",
     "next": "16.4.0",
     "react": "19.3.0",
@@ -33,5 +36,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   }
 }

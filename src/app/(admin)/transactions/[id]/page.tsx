@@ -90,7 +90,7 @@ export default async function TransactionDetail(props: {
 
             {trx.items && trx.items.length > 0 ? (
               <table className="w-full text-left text-sm">
-                <thead className="bg-[#FAF7F2] text-[#7A6251] text-xs font-semibold uppercase tracking-wider border-b border-[#EADBCC]">
+                <thead className="bg-[#FAF7F2] text-[#7A6251] text-xs font-semibold border-b border-[#EADBCC]">
                   <tr>
                     <th className="px-5 py-3.5">Item Name</th>
                     <th className="px-4 py-3.5 text-right">Price</th>

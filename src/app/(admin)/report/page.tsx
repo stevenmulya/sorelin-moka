@@ -150,65 +150,67 @@ export default async function ReportPage({
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      <div className="flex flex-col gap-5 border-b border-[#EADBCC] pb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 border-b border-[#EADBCC] pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[#4A2E1B] tracking-tight">Business Report</h1>
             <p className="text-sm text-[#7A6251] mt-1">Deep dive into your net profit, kitchen speed, and sales data.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-[#FDF0D0] text-[#7A4E0B] text-xs font-semibold rounded-full border border-[#F2DB94] shadow-xs whitespace-nowrap">
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            <span className="px-3 py-1.5 bg-[#FDF0D0] text-[#7A4E0B] text-xs font-semibold rounded-xl border border-[#F2DB94] shadow-xs whitespace-nowrap">
               {shiftsCount} Shift{shiftsCount !== 1 ? 's' : ''} Detected
             </span>
             <a
               href={`/api/export?start=${startStr}&end=${endStr}&preset=${preset}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs whitespace-nowrap"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-xs sm:text-sm hover:bg-[#3D2413] transition-colors shadow-xs whitespace-nowrap cursor-pointer"
             >
               <Download className="h-4 w-4" />
               Export Excel (.xlsx)
             </a>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-4 bg-[#FFFDF9] p-2 rounded-2xl border border-[#EADBCC]">
+
+        {/* Filter Card */}
+        <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-3 sm:p-3.5 shadow-xs">
           <DateFilter defaultStart={startStr} defaultEnd={endStr} activePreset={preset} />
         </div>
       </div>
 
       {/* TOP FINANCIAL WIDGETS */}
       <div>
-        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4">Financial Overview</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <h2 className="text-base font-bold text-[#4A2E1B] mb-3.5">Financial Overview</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs hover:border-[#D8C6B5] transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-[#F0FDF4] rounded-lg">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-2 bg-[#F0FDF4] rounded-xl">
                 <Banknote className="h-4 w-4 text-emerald-700" />
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Gross Revenue</p>
+              <p className="text-xs font-bold text-[#7A6251]">Gross Revenue</p>
             </div>
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(todayGrossRevenue)}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B] truncate">{formatRupiah(todayGrossRevenue)}</h3>
             <p className="text-xs text-[#7A6251] mt-1">Total incoming sales</p>
           </div>
 
           <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs hover:border-[#D8C6B5] transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-[#FEF2F2] rounded-lg">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-2 bg-[#FEF2F2] rounded-xl">
                 <TrendingUp className="h-4 w-4 text-red-600" />
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Total COGS</p>
+              <p className="text-xs font-bold text-[#7A6251]">Total COGS</p>
             </div>
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(todayCogs)}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B] truncate">{formatRupiah(todayCogs)}</h3>
             <p className="text-xs text-[#7A6251] mt-1">Cost of goods sold</p>
           </div>
 
           <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs hover:border-[#D8C6B5] transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-[#FEF6E7] rounded-lg">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-2 bg-[#FEF6E7] rounded-xl">
                 <CalendarDays className="h-4 w-4 text-[#9A6208]" />
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Operating Expenses</p>
+              <p className="text-xs font-bold text-[#7A6251]">Operating Expenses</p>
             </div>
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(todayApportionedOpex)}</h3>
-            <p className="text-xs text-[#7A6251] mt-1">Total expenses for this period</p>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B] truncate">{formatRupiah(todayApportionedOpex)}</h3>
+            <p className="text-xs text-[#7A6251] mt-1">Expenses recorded in this period</p>
           </div>
 
           <div className="bg-[#3D2413] rounded-2xl border border-[#4A2E1B] p-5 shadow-xs relative overflow-hidden">
@@ -216,13 +218,13 @@ export default async function ReportPage({
               <TrendingUp className="h-16 w-16 text-white" />
             </div>
             <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-white/10 rounded-lg">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
                   <TrendingUp className="h-4 w-4 text-[#FDF0D0]" />
                 </div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#FDF0D0]">True Net Profit</p>
+                <p className="text-xs font-bold text-[#FDF0D0]">True Net Profit</p>
               </div>
-              <h3 className="text-2xl font-bold tracking-tight text-[#FFFDF9]">{formatRupiah(todayNetProfit)}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#FFFDF9] truncate">{formatRupiah(todayNetProfit)}</h3>
               <p className="text-xs text-[#EADBCC] mt-1">
                 {daysInRange ? `Across ${daysInRange} selected days` : 'All-time overview'}
               </p>
@@ -232,66 +234,66 @@ export default async function ReportPage({
       </div>
 
       {/* OPERATIONAL WIDGETS */}
-      <div className="pt-4">
-        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4">Operational Performance</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="pt-2">
+        <h2 className="text-base font-bold text-[#4A2E1B] mb-3.5">Operational Performance</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-[#EFF6FF] rounded-lg">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-2 bg-[#EFF6FF] rounded-xl">
                 <Clock className="h-4 w-4 text-[#1D4ED8]" />
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Avg. Kitchen Prep Time</p>
+              <p className="text-xs font-bold text-[#7A6251]">Avg. Kitchen Prep Time</p>
             </div>
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B]">
               {avgPrepTimeMinutes} <span className="text-sm font-normal text-[#7A6251]">minutes</span>
             </h3>
             <p className="text-xs text-[#7A6251] mt-1">From &quot;Preparing&quot; to &quot;Ready&quot;</p>
           </div>
 
           <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-[#FAF5FF] rounded-lg">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-2 bg-[#FAF5FF] rounded-xl">
                 <Users className="h-4 w-4 text-[#6B21A8]" />
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Customer Base</p>
+              <p className="text-xs font-bold text-[#7A6251]">Customer Base</p>
             </div>
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B]">
               {uniqueCustomers} <span className="text-sm font-normal text-[#7A6251]">customers</span>
             </h3>
             <p className="text-xs text-[#7A6251] mt-1">Unique customer names recorded</p>
           </div>
 
-          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-[#FDF0D0] rounded-lg">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs sm:col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-2 bg-[#FDF0D0] rounded-xl">
                 <Coffee className="h-4 w-4 text-[#7A4E0B]" />
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Peak Busiest Hours</p>
+              <p className="text-xs font-bold text-[#7A6251]">Peak Busiest Hours</p>
             </div>
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{peakHourStr}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B]">{peakHourStr}</h3>
             <p className="text-xs text-[#7A6251] mt-1">Time of day with most orders (WIB)</p>
           </div>
         </div>
       </div>
 
       {/* BEST SELLERS SECTION */}
-      <div className="pt-4">
-        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4">Product Analytics</h2>
+      <div className="pt-2">
+        <h2 className="text-base font-bold text-[#4A2E1B] mb-3.5">Product Analytics</h2>
         <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-[#EADBCC] bg-[#FAF7F2]">
+          <div className="p-4 sm:p-5 border-b border-[#EADBCC] bg-[#FAF7F2]">
             <h2 className="text-sm font-bold text-[#4A2E1B] flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-emerald-700" />
               Top Best Selling Items
             </h2>
           </div>
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {topProducts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
                 {topProducts.map(([name, qty], index) => (
-                  <div key={name} className="flex items-center justify-between p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC]">
-                    <div className="flex items-center gap-3">
+                  <div key={name} className="flex items-center justify-between p-3.5 sm:p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC] gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div
-                        className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shadow-xs ${
+                        className={`h-7 w-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-xs ${
                           index === 0
                             ? 'bg-[#FDF0D0] text-[#7A4E0B] border border-[#F2DB94]'
                             : index === 1
@@ -303,10 +305,10 @@ export default async function ReportPage({
                       >
                         {index + 1}
                       </div>
-                      <span className="text-sm font-semibold text-[#382213]">{name}</span>
+                      <span className="text-sm font-semibold text-[#382213] truncate">{name}</span>
                     </div>
-                    <span className="text-sm font-bold text-emerald-800">
-                      {qty} <span className="font-semibold text-[#7A6251] uppercase text-xs">sold</span>
+                    <span className="text-sm font-bold text-emerald-800 whitespace-nowrap flex-shrink-0">
+                      {qty} <span className="font-semibold text-[#7A6251] text-xs">sold</span>
                     </span>
                   </div>
                 ))}

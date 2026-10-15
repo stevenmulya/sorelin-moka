@@ -115,7 +115,7 @@ export default async function ExpensesPage({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold border-b border-[#EADBCC] text-xs uppercase tracking-wider">
+            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs border-b border-[#EADBCC]">
               <tr>
                 <th className="px-5 py-3.5">Expense Name</th>
                 <th className="px-5 py-3.5">Paid From</th>

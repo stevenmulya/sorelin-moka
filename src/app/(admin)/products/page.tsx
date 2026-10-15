@@ -109,7 +109,7 @@ export default async function ProductsPage({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
+            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs border-b border-[#EADBCC]">
               <tr>
                 <th className="px-5 py-3.5">Priority (Drag)</th>
                 <th className="px-5 py-3.5">Product Info</th>

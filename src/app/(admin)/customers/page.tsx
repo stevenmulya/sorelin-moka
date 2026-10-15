@@ -95,7 +95,7 @@ export default async function CustomersPage({
       <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
+            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs border-b border-[#EADBCC]">
               <tr>
                 <th className="px-5 py-3.5">Customer Name</th>
                 <th className="px-5 py-3.5">Total Orders</th>

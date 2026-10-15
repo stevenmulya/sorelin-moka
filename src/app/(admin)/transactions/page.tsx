@@ -101,7 +101,7 @@ export default async function TransactionsPage({
               </button>
             </div>
 
-            <div className="relative w-full max-w-[200px]">
+            <div className="relative w-full sm:w-52">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A69383]" />
               <input
                 type="text"
@@ -117,15 +117,15 @@ export default async function TransactionsPage({
                 type="date"
                 name="date"
                 defaultValue={dateStr}
-                className="px-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] transition-all cursor-pointer min-w-[140px]"
+                className="w-full sm:w-auto px-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] transition-all cursor-pointer min-w-[140px]"
               />
             )}
 
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <select
                 name="sort"
                 defaultValue={sort}
-                className="appearance-none pl-9 pr-8 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] text-[#382213] font-medium cursor-pointer"
+                className="w-full sm:w-auto appearance-none pl-9 pr-8 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] text-[#382213] font-medium cursor-pointer"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -134,14 +134,14 @@ export default async function TransactionsPage({
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-sm font-semibold hover:bg-[#3D2413] transition-colors shadow-xs"
+              className="w-full sm:w-auto px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-sm font-semibold hover:bg-[#3D2413] transition-colors shadow-xs cursor-pointer"
             >
               Apply
             </button>
             {(q || dateStr || view === 'all') && (
               <Link
                 href="/transactions"
-                className="px-4 py-2 bg-[#FFFDF9] text-[#7A6251] border border-[#EADBCC] rounded-xl text-sm font-semibold hover:bg-[#FAF7F2] hover:text-[#4A2E1B] transition-colors"
+                className="w-full sm:w-auto text-center px-4 py-2 bg-[#FFFDF9] text-[#7A6251] border border-[#EADBCC] rounded-xl text-sm font-semibold hover:bg-[#FAF7F2] hover:text-[#4A2E1B] transition-colors cursor-pointer"
               >
                 Clear
               </Link>
@@ -158,7 +158,7 @@ export default async function TransactionsPage({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
+            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs border-b border-[#EADBCC]">
               <tr>
                 <th className="px-5 py-3.5">Transaction ID</th>
                 <th className="px-5 py-3.5">Customer</th>

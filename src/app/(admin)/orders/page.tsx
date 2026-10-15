@@ -52,7 +52,7 @@ export default async function OrdersPage() {
             
             <div className="flex-1">
               <div className="mb-4">
-                <span className="block text-xs font-semibold text-[#7A6251] uppercase tracking-wider mb-2">Order Items</span>
+                <span className="block text-xs font-semibold text-[#7A6251] mb-2">Order Items</span>
                 {order.items && order.items.length > 0 ? (
                   <ul className="space-y-2">
                     {order.items.map((item) => (

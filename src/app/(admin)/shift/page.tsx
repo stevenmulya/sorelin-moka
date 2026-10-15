@@ -95,14 +95,14 @@ export default async function ShiftPage() {
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC]">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251] mb-1">Total Sales</p>
-                  <p className="text-xl font-bold text-[#4A2E1B]">{formatRupiah(summary.revenue)}</p>
+                  <p className="text-xs font-bold text-[#7A6251] mb-1">Total Sales</p>
+                  <p className="text-xl font-bold text-[#4A2E1B] truncate">{formatRupiah(summary.revenue)}</p>
                 </div>
                 <div className="p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC]">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251] mb-1">QRIS / Debit</p>
-                  <p className="text-xl font-bold text-[#C69234]">{formatRupiah(summary.qrisSales + summary.debitSales)}</p>
+                  <p className="text-xs font-bold text-[#7A6251] mb-1">QRIS / Debit</p>
+                  <p className="text-xl font-bold text-[#C69234] truncate">{formatRupiah(summary.qrisSales + summary.debitSales)}</p>
                 </div>
               </div>
 
@@ -168,7 +168,7 @@ export default async function ShiftPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
+              <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs border-b border-[#EADBCC]">
                 <tr>
                   <th className="px-5 py-3.5">Time</th>
                   <th className="px-5 py-3.5">Cashier</th>

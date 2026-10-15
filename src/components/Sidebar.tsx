@@ -16,7 +16,6 @@ import {
   ChefHat, 
   Clock, 
   Receipt, 
-  Store, 
   ChevronDown,
   ShoppingBag,
   PlusCircle
@@ -256,9 +255,8 @@ export default function Sidebar() {
           <Link
             href="/kiosk"
             target="_blank"
-            className="w-full flex items-center gap-2.5 px-3 py-2 bg-[#FAF7F2] text-[#4A2E1B] hover:bg-[#F3ECE1] border border-[#EADBCC] rounded-xl font-semibold text-xs transition-colors shadow-xs cursor-pointer"
+            className="w-full flex items-center justify-center py-2.5 bg-[#FAF7F2] text-[#4A2E1B] hover:bg-[#F3ECE1] border border-[#EADBCC] rounded-xl font-semibold text-xs transition-colors shadow-xs cursor-pointer text-center"
           >
-            <Store className="h-4 w-4 text-[#C69234]" />
             <span>Customer Kiosk ↗</span>
           </Link>
           <form action={logoutAction}>

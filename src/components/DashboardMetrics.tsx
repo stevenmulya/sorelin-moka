@@ -35,20 +35,20 @@ export default function DashboardMetrics({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Orders Card */}
         <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs flex flex-col justify-center relative group hover:border-[#D8C6B5] transition-colors">
           <div className="flex items-center justify-between mb-3">
             <Link href="/transactions?view=shift" className="flex items-center gap-2 hover:opacity-80">
               <Calendar className="h-4 w-4 text-[#C69234]" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">{periodLabel} Orders</p>
+              <p className="text-xs font-bold text-[#7A6251]">{periodLabel} Orders</p>
             </Link>
-            <button onClick={() => setActiveModal('orders')} className="text-[#A69383] hover:text-[#4A2E1B] transition-colors" title="Orders Calculation">
+            <button onClick={() => setActiveModal('orders')} className="text-[#A69383] hover:text-[#4A2E1B] transition-colors cursor-pointer" title="Orders Calculation">
               <Info className="h-4 w-4" />
             </button>
           </div>
           <Link href="/transactions?view=shift">
-            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{ordersCount} <span className="text-xs font-normal text-[#7A6251]">orders</span></h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B] truncate">{ordersCount} <span className="text-xs font-normal text-[#7A6251]">orders</span></h3>
           </Link>
         </div>
 
@@ -57,13 +57,13 @@ export default function DashboardMetrics({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Wallet className="h-4 w-4 text-emerald-700" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">{periodLabel} Revenue</p>
+              <p className="text-xs font-bold text-[#7A6251]">{periodLabel} Revenue</p>
             </div>
-            <button onClick={() => setActiveModal('revenue')} className="text-[#A69383] hover:text-[#4A2E1B] transition-colors" title="Revenue Breakdown">
+            <button onClick={() => setActiveModal('revenue')} className="text-[#A69383] hover:text-[#4A2E1B] transition-colors cursor-pointer" title="Revenue Breakdown">
               <Info className="h-4 w-4" />
             </button>
           </div>
-          <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(revenue)}</h3>
+          <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B] truncate">{formatRupiah(revenue)}</h3>
         </div>
 
         {/* Net Profit Card */}
@@ -71,13 +71,13 @@ export default function DashboardMetrics({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-[#7A4E0B]" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Net Profit</p>
+              <p className="text-xs font-bold text-[#7A6251]">Net Profit</p>
             </div>
-            <button onClick={() => setActiveModal('profit')} className="text-[#A69383] hover:text-[#4A2E1B] transition-colors" title="Net Profit Calculation">
+            <button onClick={() => setActiveModal('profit')} className="text-[#A69383] hover:text-[#4A2E1B] transition-colors cursor-pointer" title="Net Profit Calculation">
               <Info className="h-4 w-4" />
             </button>
           </div>
-          <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(netProfit)}</h3>
+          <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#4A2E1B] truncate">{formatRupiah(netProfit)}</h3>
         </div>
 
         {/* Low Stock Alert Card */}
@@ -86,9 +86,9 @@ export default function DashboardMetrics({
             <div className="h-5 w-5 rounded-full bg-[#FEE2E2] flex items-center justify-center">
               <AlertTriangle className="h-3 w-3 text-red-600" />
             </div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-red-800">Stock Alert</p>
+            <p className="text-xs font-bold text-red-800">Stock Alert</p>
           </div>
-          <h3 className="text-2xl font-bold tracking-tight text-red-800">{lowStockCount} <span className="text-xs font-normal text-red-700">low stock</span></h3>
+          <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-red-800 truncate">{lowStockCount} <span className="text-xs font-normal text-red-700">low stock</span></h3>
         </Link>
       </div>
 

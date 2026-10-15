@@ -78,17 +78,17 @@ export default async function DashboardPage() {
           />
 
           {/* Quick Action */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm p-6 flex items-center justify-between">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] shadow-xs p-6 flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-gray-900 text-base">New Transaction</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Create a new order for a customer.</p>
+              <h3 className="font-bold text-[#4A2E1B] text-base">New Order</h3>
+              <p className="text-xs text-[#7A6251] mt-0.5">Create a new order for a customer.</p>
             </div>
             <Link
               href="/transactions/new"
-              className="px-6 py-2.5 bg-gray-900 text-white rounded-lg font-medium text-sm hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2"
+              className="px-5 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Create
+              Create Order
             </Link>
           </div>
         </div>
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
 
       {/* Kanban Orders */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 tracking-tight">Active Orders</h2>
+        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4 tracking-tight">Active Orders</h2>
         <DashboardKanban initialOrders={activeOrders} />
       </div>
     </div>

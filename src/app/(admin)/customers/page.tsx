@@ -20,25 +20,46 @@ export default async function CustomersPage({
   const take = 10;
   const skip = (page - 1) * take;
 
-  // Group by customer using DB Engine
-  const customerStats = await prisma.transaction.groupBy({
-    by: ['customer'],
-    _sum: { amount: true },
-    _count: { _all: true },
-    _max: { createdAt: true },
-    where: {
-      status: { in: [...PAID_STATUSES] },
-      customer: q ? { contains: q } : undefined,
-    },
-    orderBy: {
-      _sum: { amount: 'desc' },
-    },
-  });
+  // Group by customer using DB Engine with database pagination
+  const [paginatedStats, allCustomerGroups, topBuyerGroup] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ['customer'],
+      _sum: { amount: true },
+      _count: { _all: true },
+      _max: { createdAt: true },
+      where: {
+        status: { in: [...PAID_STATUSES] },
+        customer: q ? { contains: q } : undefined,
+      },
+      orderBy: {
+        _sum: { amount: 'desc' },
+      },
+      take,
+      skip,
+    }),
+    prisma.transaction.groupBy({
+      by: ['customer'],
+      where: {
+        status: { in: [...PAID_STATUSES] },
+        customer: q ? { contains: q } : undefined,
+      },
+    }),
+    prisma.transaction.groupBy({
+      by: ['customer'],
+      _sum: { amount: true },
+      where: {
+        status: { in: [...PAID_STATUSES] },
+        customer: { not: 'Guest' },
+      },
+      orderBy: {
+        _sum: { amount: 'desc' },
+      },
+      take: 1,
+    }),
+  ]);
 
-  const totalItems = customerStats.length;
+  const totalItems = allCustomerGroups.length;
   const totalPages = Math.ceil(totalItems / take) || 1;
-
-  const paginatedStats = customerStats.slice(skip, skip + take);
 
   const customers = paginatedStats.map((s) => ({
     name: s.customer || 'Guest',
@@ -47,16 +68,16 @@ export default async function CustomersPage({
     lastOrder: s._max.createdAt || new Date(),
   }));
 
-  const topBuyer = customerStats.length > 0 && customerStats[0].customer?.toLowerCase() !== 'guest'
-    ? customerStats[0].customer
+  const topBuyer = topBuyerGroup.length > 0 && topBuyerGroup[0].customer?.toLowerCase() !== 'guest'
+    ? topBuyerGroup[0].customer
     : null;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Customer Directory</h1>
-          <p className="text-sm text-gray-500 mt-1">Overview of customer order histories and purchase totals.</p>
+          <h1 className="text-2xl font-bold text-[#4A2E1B] tracking-tight">Customer Directory</h1>
+          <p className="text-sm text-[#7A6251] mt-1">Overview of customer order histories and purchase totals.</p>
         </div>
 
         <form method="GET" action="/customers" className="relative w-full sm:w-64">
@@ -65,55 +86,55 @@ export default async function CustomersPage({
             name="q"
             defaultValue={q}
             placeholder="Search customers..."
-            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            className="w-full pl-9 pr-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] placeholder-[#A69383] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B]"
           />
-          <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="h-4 w-4 text-[#A69383] absolute left-3 top-1/2 -translate-y-1/2" />
         </form>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
+            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
               <tr>
-                <th className="px-6 py-4">Customer Name</th>
-                <th className="px-6 py-4">Total Orders</th>
-                <th className="px-6 py-4">Total Spent</th>
-                <th className="px-6 py-4">Last Order</th>
+                <th className="px-5 py-3.5">Customer Name</th>
+                <th className="px-5 py-3.5">Total Orders</th>
+                <th className="px-5 py-3.5">Total Spent</th>
+                <th className="px-5 py-3.5">Last Order</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[#EADBCC]/60">
               {customers.map((c, idx) => (
-                <tr key={`${c.name}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
+                <tr key={`${c.name}-${idx}`} className="hover:bg-[#FAF7F2] transition-colors">
+                  <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-xs uppercase">
+                      <div className="h-8 w-8 rounded-full bg-[#FAF7F2] text-[#4A2E1B] border border-[#EADBCC] flex items-center justify-center font-bold text-xs uppercase">
                         {c.name.substring(0, 2)}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{c.name}</p>
+                        <p className="font-bold text-[#382213]">{c.name}</p>
                         {topBuyer === c.name && (
-                          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-0.5 inline-block border border-amber-200">
-                            TOP BUYER
+                          <span className="text-[10px] font-semibold text-[#7A4E0B] bg-[#FDF0D0] px-2.5 py-0.5 rounded-full mt-0.5 inline-block border border-[#F2DB94]">
+                            Top Buyer
                           </span>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">
-                    <div className="flex items-center gap-1.5">
-                      <ShoppingBag className="h-4 w-4 text-gray-400" />
+                  <td className="px-5 py-3.5 text-[#6B5344]">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <ShoppingBag className="h-4 w-4 text-[#A69383]" />
                       {c.orderCount} orders
                     </div>
                   </td>
-                  <td className="px-6 py-4 font-medium text-emerald-600">{formatRupiah(c.totalSpent)}</td>
-                  <td className="px-6 py-4 text-gray-500">{formatWibDate(c.lastOrder)}</td>
+                  <td className="px-5 py-3.5 font-bold text-[#4A2E1B]">{formatRupiah(c.totalSpent)}</td>
+                  <td className="px-5 py-3.5 text-[#7A6251] text-xs">{formatWibDate(c.lastOrder)}</td>
                 </tr>
               ))}
               {customers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    <Users className="h-10 w-10 mx-auto text-gray-300 mb-3" />
+                  <td colSpan={4} className="px-6 py-12 text-center text-[#7A6251]">
+                    <Users className="h-10 w-10 mx-auto text-[#C4B2A2] mb-3" />
                     No customers found.
                   </td>
                 </tr>

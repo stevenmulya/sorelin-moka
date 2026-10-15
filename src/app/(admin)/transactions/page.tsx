@@ -69,22 +69,22 @@ export default async function TransactionsPage({
   const totalPages = Math.ceil(totalItems / take) || 1;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Transactions History</h1>
-        <p className="text-sm text-gray-500 mt-1">View incoming transactions and approve payments.</p>
+        <h1 className="text-2xl font-bold text-[#4A2E1B] tracking-tight">Order History</h1>
+        <p className="text-sm text-[#7A6251] mt-1">Review all completed sales, payment statuses, and print receipts.</p>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <form method="GET" action="/transactions" className="p-4 border-b border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50/50">
+      <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
+        <form method="GET" action="/transactions" className="p-4 border-b border-[#EADBCC] flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#FAF7F2]">
           <div className="flex items-center gap-3 w-full sm:w-auto flex-1 flex-wrap">
-            <div className="flex bg-white rounded-lg border border-gray-300 p-0.5">
+            <div className="flex bg-[#FFFDF9] rounded-xl border border-[#EADBCC] p-0.5">
               <button
                 type="submit"
                 name="view"
                 value="shift"
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  view === 'shift' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  view === 'shift' ? 'bg-[#4A2E1B] text-[#FFFDF9]' : 'text-[#7A6251] hover:text-[#4A2E1B]'
                 }`}
               >
                 This Shift
@@ -93,8 +93,8 @@ export default async function TransactionsPage({
                 type="submit"
                 name="view"
                 value="all"
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  view === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  view === 'all' ? 'bg-[#4A2E1B] text-[#FFFDF9]' : 'text-[#7A6251] hover:text-[#4A2E1B]'
                 }`}
               >
                 See All
@@ -102,13 +102,13 @@ export default async function TransactionsPage({
             </div>
 
             <div className="relative w-full max-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A69383]" />
               <input
                 type="text"
                 name="q"
                 defaultValue={q}
-                placeholder="Search..."
-                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
+                placeholder="Search transactions..."
+                className="w-full pl-9 pr-4 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] placeholder-[#A69383] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] transition-all"
               />
             </div>
 
@@ -117,7 +117,7 @@ export default async function TransactionsPage({
                 type="date"
                 name="date"
                 defaultValue={dateStr}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all cursor-pointer min-w-[140px]"
+                className="px-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] transition-all cursor-pointer min-w-[140px]"
               />
             )}
 
@@ -125,23 +125,23 @@ export default async function TransactionsPage({
               <select
                 name="sort"
                 defaultValue={sort}
-                className="appearance-none pl-9 pr-8 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 font-medium cursor-pointer"
+                className="appearance-none pl-9 pr-8 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] text-[#382213] font-medium cursor-pointer"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
               </select>
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7A6251]" />
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors shadow-sm"
+              className="px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-sm font-semibold hover:bg-[#3D2413] transition-colors shadow-xs"
             >
               Apply
             </button>
             {(q || dateStr || view === 'all') && (
               <Link
                 href="/transactions"
-                className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 bg-[#FFFDF9] text-[#7A6251] border border-[#EADBCC] rounded-xl text-sm font-semibold hover:bg-[#FAF7F2] hover:text-[#4A2E1B] transition-colors"
               >
                 Clear
               </Link>
@@ -150,38 +150,38 @@ export default async function TransactionsPage({
 
           <Link
             href="/transactions/new"
-            className="inline-flex items-center justify-center px-4 py-2 bg-gray-900 text-white rounded-lg font-medium text-sm hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs whitespace-nowrap cursor-pointer"
           >
-            New Transaction
+            New Order
           </Link>
         </form>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
+            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
               <tr>
-                <th className="px-6 py-4">Transaction ID</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-5 py-3.5">Transaction ID</th>
+                <th className="px-5 py-3.5">Customer</th>
+                <th className="px-5 py-3.5">Amount</th>
+                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[#EADBCC]/60">
               {transactions.length > 0 ? (
                 transactions.map((trx) => (
-                  <tr key={trx.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                  <tr key={trx.id} className="hover:bg-[#FAF7F2] transition-colors">
+                    <td className="px-5 py-3.5 font-bold text-xs text-[#4A2E1B]">
                       {generateTrxCode(trx.id, trx.createdAt, trx.customer)}
                     </td>
-                    <td className="px-6 py-4 text-gray-900">{trx.customer}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                    <td className="px-5 py-3.5 font-medium text-[#382213]">{trx.customer}</td>
+                    <td className="px-5 py-3.5 font-bold text-[#4A2E1B]">
                       {formatRupiah(trx.amount)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       <StatusBadge status={trx.status} />
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <TransactionActions id={trx.id} />
                       </div>
@@ -190,7 +190,7 @@ export default async function TransactionsPage({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-[#7A6251]">
                     {view === 'shift' && where.shiftId === -1
                       ? "No active shift currently running. Open a shift first, or select 'See All' to view history."
                       : 'No transactions found.'}

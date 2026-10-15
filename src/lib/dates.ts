@@ -25,6 +25,20 @@ export function formatWibDate(date: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Format jam 'HH:mm' menurut WIB. */
+export function formatWibTime(date: Date | string): string {
+  const d = new Date(new Date(date).getTime() + OFFSET);
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${h}:${min}`;
+}
+
+/** Format tanggal & jam 'YYYY-MM-DD HH:mm WIB' */
+export function formatWibDateTime(date: Date | string): string {
+  const d = new Date(date);
+  return `${formatWibDate(d)} ${formatWibTime(d)} WIB`;
+}
+
 /** Jam (0-23) menurut WIB. */
 export function wibHour(date: Date): number {
   return new Date(date.getTime() + OFFSET).getUTCHours();

@@ -38,48 +38,51 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-8 text-center bg-gray-900 text-white">
-          <div className="h-12 w-12 bg-white/10 rounded-xl mx-auto flex items-center justify-center mb-4">
-            <Lock className="h-6 w-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold">Welcome Back</h1>
-          <p className="text-gray-400 mt-2 text-sm">Sign in to access your dashboard</p>
+    <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-[#FFFDF9] rounded-3xl shadow-lg border border-[#EADBCC] overflow-hidden">
+        <div className="p-8 text-center bg-[#4A2E1B] text-[#FFFDF9]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src="/sorelin-secondary-lockup.png" 
+            alt="Sorelin" 
+            className="w-36 h-auto mx-auto mb-3 drop-shadow-sm filter brightness-0 invert" 
+          />
+          <h1 className="text-xl font-bold tracking-tight">Point of Sale System</h1>
+          <p className="text-[#EADBCC] mt-1 text-xs">Sign in as Cashier or Administrator</p>
         </div>
         
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {error && (
-            <div className="p-4 bg-red-50 text-red-700 rounded-xl text-sm font-medium border border-red-100">
+            <div className="p-4 bg-red-50 text-red-700 rounded-2xl text-xs font-semibold border border-red-200">
               {error}
             </div>
           )}
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+              <label className="block text-xs font-bold text-[#3B2314] mb-1.5 uppercase tracking-wider">Username</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7A6251]" />
                 <input 
                   name="username"
                   type="text" 
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all"
-                  placeholder="Enter your username"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF7F2] border border-[#E2D6C6] rounded-xl text-sm text-[#3B2314] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] focus:bg-white transition-all"
+                  placeholder="Enter username"
                 />
               </div>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <label className="block text-xs font-bold text-[#3B2314] mb-1.5 uppercase tracking-wider">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7A6251]" />
                 <input 
                   name="password"
                   type="password" 
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all"
-                  placeholder="Enter your password"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF7F2] border border-[#E2D6C6] rounded-xl text-sm text-[#3B2314] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] focus:bg-white transition-all"
+                  placeholder="Enter password"
                 />
               </div>
             </div>
@@ -88,10 +91,19 @@ function LoginContent() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-3.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition-colors shadow-sm disabled:opacity-70 flex items-center justify-center"
+            className="w-full py-3 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-bold hover:bg-[#3D2413] transition-all shadow-sm disabled:opacity-60 flex items-center justify-center text-sm cursor-pointer active:scale-[0.99]"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+
+          <div className="pt-2 text-center border-t border-[#F0EAE1]">
+            <a 
+              href="/kiosk" 
+              className="text-xs text-[#7A6251] hover:text-[#3B2314] font-medium transition-colors"
+            >
+              Customer ordering? Go to Kiosk Mode →
+            </a>
+          </div>
         </form>
       </div>
     </div>

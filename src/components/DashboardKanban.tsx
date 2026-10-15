@@ -56,26 +56,26 @@ function KanbanColumn({
 
   return (
     <div
-      className={`bg-gray-100 rounded-xl p-4 min-h-[300px] border-2 border-transparent transition-colors ${
-        draggedId ? 'border-dashed border-gray-300' : ''
+      className={`bg-[#FAF7F2] rounded-2xl p-4 min-h-[300px] border border-[#EADBCC] transition-colors ${
+        draggedId ? 'border-dashed border-[#C69234]' : ''
       }`}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, status)}
     >
       <div className="flex items-center gap-2 mb-4 px-1">
         <Icon className={`h-4 w-4 ${colorClass}`} />
-        <h3 className="font-semibold text-gray-900 text-sm">{title}</h3>
+        <h3 className="font-bold text-[#4A2E1B] text-sm">{title}</h3>
 
         {status === 'Picked Up' && colOrders.length > 0 ? (
           <button
             type="button"
             onClick={onArchiveAll}
-            className="ml-auto bg-emerald-600 text-white hover:bg-emerald-700 transition-colors text-[10px] font-bold px-2 py-1 rounded"
+            className="ml-auto bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] transition-colors text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xs"
           >
-            DONE ALL
+            Archive All
           </button>
         ) : (
-          <span className="ml-auto bg-gray-200 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-full">
+          <span className="ml-auto bg-[#FFFDF9] border border-[#EADBCC] text-[#7A6251] text-xs font-semibold px-2 py-0.5 rounded-full">
             {colOrders.length}
           </span>
         )}
@@ -88,22 +88,22 @@ function KanbanColumn({
             draggable
             onDragStart={(e) => onDragStart(e, order.id)}
             onDragEnd={onDragEnd}
-            className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors group relative"
+            className="bg-[#FFFDF9] p-3.5 rounded-xl shadow-xs border border-[#EADBCC] cursor-grab active:cursor-grabbing hover:border-[#D8C6B5] transition-colors group relative"
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-bold text-gray-900">
+              <span className="text-xs font-bold text-[#4A2E1B]">
                 {generateTrxCode(order.id, order.createdAt, order.customer)}
               </span>
-              <div className="flex gap-1">
+              <div className="flex gap-1.5">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onViewOrder(order);
                   }}
-                  className="px-2 py-0.5 bg-gray-100 text-gray-600 hover:bg-200 text-[10px] font-bold rounded transition-colors"
+                  className="px-2 py-0.5 bg-[#FAF7F2] border border-[#EADBCC] text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#F3ECE1] text-[11px] font-semibold rounded-md transition-colors"
                 >
-                  VIEW
+                  View
                 </button>
                 {status === 'Picked Up' && (
                   <button
@@ -112,18 +112,18 @@ function KanbanColumn({
                       e.stopPropagation();
                       onArchiveSingle(order);
                     }}
-                    className="px-2 py-0.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 text-[10px] font-bold rounded transition-opacity"
+                    className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-[11px] font-semibold rounded-md transition-colors"
                   >
-                    DONE
+                    Complete
                   </button>
                 )}
               </div>
             </div>
-            <p className="text-sm font-medium text-gray-800">{order.customer}</p>
+            <p className="text-sm font-semibold text-[#382213]">{order.customer}</p>
           </div>
         ))}
         {colOrders.length === 0 && (
-          <div className="text-center p-4 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500">
+          <div className="text-center p-6 border border-dashed border-[#EADBCC] rounded-xl text-xs text-[#7A6251]">
             Drag orders here
           </div>
         )}
@@ -303,26 +303,26 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
 
       {/* Modal Konfirmasi */}
       {modalState.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#28170D]/50 backdrop-blur-xs transition-opacity">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100 mb-4">
-                <AlertCircle className="h-6 w-6 text-emerald-600" />
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-[#FDF0D0] mb-4">
+                <AlertCircle className="h-6 w-6 text-[#C69234]" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">{modalState.title}</h3>
-              <p className="text-sm text-gray-500 mb-6">{modalState.message}</p>
+              <h3 className="text-lg font-bold text-[#4A2E1B] mb-2">{modalState.title}</h3>
+              <p className="text-sm text-[#7A6251] mb-6">{modalState.message}</p>
               <div className="flex items-center gap-3 w-full">
                 <button
                   type="button"
                   onClick={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
-                  className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-[#FAF7F2] border border-[#EADBCC] hover:bg-[#F3ECE1] text-[#4A2E1B] text-sm font-semibold rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={modalState.onConfirm}
-                  className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-[#4A2E1B] hover:bg-[#3D2413] text-[#FFFDF9] text-sm font-semibold rounded-xl transition-colors shadow-xs"
                 >
                   Confirm
                 </button>
@@ -334,19 +334,19 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
 
       {/* View Items Modal */}
       {viewItemsModal?.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#28170D]/50 backdrop-blur-xs transition-opacity">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-[#EADBCC] flex justify-between items-center bg-[#FAF7F2]">
               <div>
-                <h3 className="font-bold text-gray-900">Order Items</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <h3 className="font-bold text-[#4A2E1B]">Order Items</h3>
+                <p className="text-xs text-[#7A6251] mt-0.5">
                   {generateTrxCode(viewItemsModal.order.id, viewItemsModal.order.createdAt, viewItemsModal.order.customer)} - {viewItemsModal.order.customer}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setViewItemsModal(null)}
-                className="text-gray-400 hover:text-gray-600 p-1"
+                className="text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2] p-1.5 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -355,24 +355,24 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
               {viewItemsModal.order.items && viewItemsModal.order.items.length > 0 ? (
                 <div className="space-y-3">
                   {viewItemsModal.order.items.map((item: KanbanOrderItem) => (
-                    <div key={item.id} className="flex justify-between items-center text-sm border-b border-gray-50 pb-2">
+                    <div key={item.id} className="flex justify-between items-center text-sm border-b border-[#EADBCC]/50 pb-2">
                       <div>
-                        <span className="font-semibold text-gray-900">{item.quantity}x</span>
-                        <span className="ml-2 text-gray-700">{item.productName}</span>
+                        <span className="font-bold text-[#4A2E1B]">{item.quantity}x</span>
+                        <span className="ml-2 font-medium text-[#382213]">{item.productName}</span>
                       </div>
-                      <span className="text-gray-500 text-xs">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                      <span className="text-[#7A6251] font-semibold text-xs">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-gray-500 text-sm py-4">No items found for this order.</p>
+                <p className="text-center text-[#7A6251] text-sm py-4">No items found for this order.</p>
               )}
             </div>
-            <div className="p-4 border-t border-gray-100 bg-gray-50 text-right">
+            <div className="p-4 border-t border-[#EADBCC] bg-[#FAF7F2] text-right">
               <button
                 type="button"
                 onClick={() => setViewItemsModal(null)}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+                className="px-5 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] text-sm font-semibold rounded-xl hover:bg-[#3D2413] transition-colors shadow-xs"
               >
                 Close
               </button>

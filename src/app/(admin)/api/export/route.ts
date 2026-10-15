@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
-import { resolveRange, formatWibDate } from '@/lib/dates';
+import { resolveRange, formatWibDate, formatWibTime } from '@/lib/dates';
 import { PAID_STATUSES } from '@/lib/constants';
 
 export async function GET(request: Request) {
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
   const rows = [];
   
   for (const trx of transactions) {
-    const timeStr = trx.createdAt.toLocaleTimeString('id-ID', { hour12: false });
+    const timeStr = formatWibTime(trx.createdAt);
     const dateStr = formatWibDate(trx.createdAt);
     
     // Format items as a single string

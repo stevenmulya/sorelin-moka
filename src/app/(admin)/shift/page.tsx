@@ -5,7 +5,8 @@ import { openShift } from '@/app/actions';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';
 import { connection } from 'next/server';
 import { summarizeShift, expectedCashOf } from '@/lib/services/shifts';
-import { formatWibDate } from '@/lib/dates';
+import { formatWibDate, formatWibTime } from '@/lib/dates';
+import { formatRupiah } from '@/lib/utils';
 
 export const instant = false;
 
@@ -29,48 +30,48 @@ export default async function ShiftPage() {
   const pendingCount = summary?.pendingCount ?? 0;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Shift Management</h1>
-        <p className="text-sm text-gray-500 mt-1">Open a shift to start selling. Close it to reconcile your cash drawer.</p>
+        <h1 className="text-2xl font-bold text-[#4A2E1B] tracking-tight">Shift Management</h1>
+        <p className="text-sm text-[#7A6251] mt-1">Open a shift to start selling. Close it to reconcile your cash drawer.</p>
       </div>
 
       {!activeShift || !summary ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-6">
-            <Wallet className="h-8 w-8 text-gray-600" />
+        <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl p-8 shadow-xs text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FAF7F2] border border-[#EADBCC] mb-6">
+            <Wallet className="h-8 w-8 text-[#4A2E1B]" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">No Active Shift</h2>
-          <p className="text-gray-500 mb-8 max-w-md mx-auto">
+          <h2 className="text-2xl font-bold text-[#4A2E1B] mb-2">No Active Shift</h2>
+          <p className="text-[#7A6251] mb-8 max-w-md mx-auto">
             You cannot process new transactions until a shift is opened. Enter your name and the initial cash amount in the drawer to begin.
           </p>
 
-          <ActionForm action={openShift} className="max-w-sm mx-auto bg-gray-50 p-6 rounded-xl border border-gray-100 text-left space-y-4">
+          <ActionForm action={openShift} className="max-w-sm mx-auto bg-[#FAF7F2] p-6 rounded-2xl border border-[#EADBCC] text-left space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cashier Name</label>
+              <label className="block text-sm font-semibold text-[#4A2E1B] mb-1">Cashier Name</label>
               <input
                 type="text"
                 name="openedBy"
                 required
                 maxLength={60}
                 placeholder="Your Name"
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:outline-none"
+                className="w-full px-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] focus:ring-2 focus:ring-[#4A2E1B] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Initial Cash (Rp)</label>
+              <label className="block text-sm font-semibold text-[#4A2E1B] mb-1">Initial Cash (Rp)</label>
               <input
                 type="number"
                 name="initialCash"
                 required
                 defaultValue={0}
                 min={0}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:outline-none"
+                className="w-full px-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] focus:ring-2 focus:ring-[#4A2E1B] focus:outline-none"
               />
             </div>
             <SubmitButton
               pendingText="Starting..."
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold hover:bg-[#3D2413] transition-colors flex items-center justify-center gap-2 shadow-xs"
             >
               <LogIn className="h-4 w-4" /> Start Shift
             </SubmitButton>
@@ -78,71 +79,71 @@ export default async function ShiftPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="p-6 border-b border-gray-200 bg-emerald-50/50">
+          <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
+            <div className="p-6 border-b border-[#EADBCC] bg-[#FAF7F2]">
               <div className="flex items-center justify-between mb-4">
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
                   Active Shift
                 </span>
-                <span className="text-sm text-gray-500">{activeShift.startTime.toLocaleTimeString()}</span>
+                <span className="text-sm text-[#7A6251]">{formatWibTime(activeShift.startTime)} WIB</span>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Shift running</h2>
-              <p className="text-gray-600 mt-1">
-                Opened by <span className="font-semibold text-gray-900">{activeShift.openedBy}</span>
+              <h2 className="text-2xl font-bold text-[#4A2E1B]">Active Shift Running</h2>
+              <p className="text-[#7A6251] mt-1">
+                Opened by <span className="font-semibold text-[#4A2E1B]">{activeShift.openedBy}</span>
               </p>
             </div>
 
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Total Sales</p>
-                  <p className="text-lg font-bold text-gray-900">Rp {summary.revenue.toLocaleString('id-ID')}</p>
+                <div className="p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC]">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251] mb-1">Total Sales</p>
+                  <p className="text-xl font-bold text-[#4A2E1B]">{formatRupiah(summary.revenue)}</p>
                 </div>
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-1">QRIS / Debit</p>
-                  <p className="text-lg font-bold text-blue-600">Rp {(summary.qrisSales + summary.debitSales).toLocaleString('id-ID')}</p>
+                <div className="p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC]">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251] mb-1">QRIS / Debit</p>
+                  <p className="text-xl font-bold text-[#C69234]">{formatRupiah(summary.qrisSales + summary.debitSales)}</p>
                 </div>
               </div>
 
-              <div className="border-t border-gray-100 pt-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">Cash Drawer Calculation</h3>
+              <div className="border-t border-[#EADBCC]/60 pt-6">
+                <h3 className="text-sm font-bold text-[#4A2E1B] mb-4">Cash Drawer Calculation</h3>
                 <div className="space-y-3 text-sm">
-                  <div className="flex justify-between text-gray-600">
+                  <div className="flex justify-between text-[#6B5344]">
                     <span>Starting Cash Float</span>
-                    <span>Rp {activeShift.initialCash.toLocaleString('id-ID')}</span>
+                    <span>{formatRupiah(activeShift.initialCash)}</span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
+                  <div className="flex justify-between text-[#6B5344]">
                     <span>+ Cash Sales</span>
-                    <span>Rp {summary.cashSales.toLocaleString('id-ID')}</span>
+                    <span>{formatRupiah(summary.cashSales)}</span>
                   </div>
                   {summary.cashExpenses > 0 && (
-                    <div className="flex justify-between text-red-600">
+                    <div className="flex justify-between text-red-600 font-medium">
                       <span>- Cash Drawer Expenses</span>
-                      <span>- Rp {summary.cashExpenses.toLocaleString('id-ID')}</span>
+                      <span>- {formatRupiah(summary.cashExpenses)}</span>
                     </div>
                   )}
                   {summary.nonCashExpenses > 0 && (
-                    <div className="flex justify-between text-gray-500 text-xs py-1 px-2 bg-gray-50 rounded">
+                    <div className="flex justify-between text-[#7A6251] text-xs py-1 px-2 bg-[#FAF7F2] rounded-lg border border-[#EADBCC]">
                       <span>Bank / Owner Expenses (External)</span>
-                      <span>Rp {summary.nonCashExpenses.toLocaleString('id-ID')}</span>
+                      <span>{formatRupiah(summary.nonCashExpenses)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-dashed border-gray-200">
+                  <div className="flex justify-between font-bold text-[#4A2E1B] pt-2 border-t border-dashed border-[#EADBCC]">
                     <span>Expected Cash in Drawer</span>
-                    <span>Rp {expectedCash.toLocaleString('id-ID')}</span>
+                    <span>{formatRupiah(expectedCash)}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <LogOut className="h-5 w-5 text-gray-400" /> Close Shift
+          <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs flex flex-col">
+            <div className="p-6 border-b border-[#EADBCC] bg-[#FAF7F2]">
+              <h2 className="text-lg font-bold text-[#4A2E1B] flex items-center gap-2">
+                <LogOut className="h-5 w-5 text-[#7A6251]" /> Close Shift
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Count the physical cash in your drawer before closing.</p>
+              <p className="text-sm text-[#7A6251] mt-1">Count the physical cash in your drawer before closing.</p>
             </div>
 
             <div className="p-6 flex-1 flex flex-col justify-center">
@@ -159,47 +160,47 @@ export default async function ShiftPage() {
 
       {/* Recent Shifts History */}
       {recentShifts.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mt-8">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-gray-500" /> Recent Closed Shifts
+        <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl shadow-xs overflow-hidden mt-8">
+          <div className="px-5 py-4 border-b border-[#EADBCC] bg-[#FAF7F2]">
+            <h3 className="text-sm font-bold text-[#4A2E1B] flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[#7A6251]" /> Recent Closed Shifts
             </h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+              <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs uppercase tracking-wider border-b border-[#EADBCC]">
                 <tr>
-                  <th className="px-6 py-3">Time</th>
-                  <th className="px-6 py-3">Cashier</th>
-                  <th className="px-6 py-3 text-right">Expected</th>
-                  <th className="px-6 py-3 text-right">Actual</th>
-                  <th className="px-6 py-3 text-right">Discrepancy</th>
+                  <th className="px-5 py-3.5">Time</th>
+                  <th className="px-5 py-3.5">Cashier</th>
+                  <th className="px-5 py-3.5 text-right">Expected</th>
+                  <th className="px-5 py-3.5 text-right">Actual</th>
+                  <th className="px-5 py-3.5 text-right">Discrepancy</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#EADBCC]/60">
                 {recentShifts.map((s) => {
                   const diff = (s.actualCash ?? 0) - (s.expectedCash ?? 0);
                   return (
-                    <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-3">
-                        <div className="font-medium text-gray-900">{formatWibDate(s.startTime)}</div>
-                        <div className="text-xs text-gray-500">
-                          {s.startTime.toLocaleTimeString()} - {s.endTime?.toLocaleTimeString() ?? '-'}
+                    <tr key={s.id} className="hover:bg-[#FAF7F2] transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-[#382213]">{formatWibDate(s.startTime)}</div>
+                        <div className="text-xs text-[#7A6251]">
+                          {formatWibTime(s.startTime)} - {s.endTime ? formatWibTime(s.endTime) : '-'}
                         </div>
                       </td>
-                      <td className="px-6 py-3 text-gray-600">
+                      <td className="px-5 py-3.5 text-[#6B5344]">
                         {s.openedBy} &rarr; {s.closedBy ?? '-'}
                       </td>
-                      <td className="px-6 py-3 text-right text-gray-600">Rp {(s.expectedCash ?? 0).toLocaleString('id-ID')}</td>
-                      <td className="px-6 py-3 text-right font-medium text-gray-900">
-                        Rp {(s.actualCash ?? 0).toLocaleString('id-ID')}
+                      <td className="px-5 py-3.5 text-right text-[#7A6251]">{formatRupiah(s.expectedCash ?? 0)}</td>
+                      <td className="px-5 py-3.5 text-right font-bold text-[#4A2E1B]">
+                        {formatRupiah(s.actualCash ?? 0)}
                       </td>
                       <td
-                        className={`px-6 py-3 text-right font-bold ${
-                          diff === 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-blue-600'
+                        className={`px-5 py-3.5 text-right font-bold ${
+                          diff === 0 ? 'text-emerald-700' : diff < 0 ? 'text-red-700' : 'text-[#C69234]'
                         }`}
                       >
-                        {diff > 0 ? '+' : ''} Rp {diff.toLocaleString('id-ID')}
+                        {diff > 0 ? `+${formatRupiah(diff)}` : diff < 0 ? `-${formatRupiah(Math.abs(diff))}` : formatRupiah(0)}
                       </td>
                     </tr>
                   );

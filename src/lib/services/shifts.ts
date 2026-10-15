@@ -116,8 +116,8 @@ export async function closeShiftService(shiftId: number, actualCashRaw: unknown,
     const expectedCash = expectedCashOf(shift.initialCash, summary);
     await tx.shift.update({ where: { id: shiftId }, data: { expectedCash } });
 
-    // Clear kitchen board for next shift
-    await tx.transaction.updateMany({ where: { status: STATUS.PICKED_UP }, data: { status: STATUS.CLOSED } });
+    // Clear kitchen board for next shift (scoped to current shift)
+    await tx.transaction.updateMany({ where: { shiftId, status: STATUS.PICKED_UP }, data: { status: STATUS.CLOSED } });
 
     return { expectedCash, actualCash };
   });
@@ -136,23 +136,25 @@ export async function createExpenseService(
     ? paymentMethodRaw 
     : 'Cash';
 
-  const shift = await prisma.shift.findFirst({ where: { status: 'Open' }, orderBy: { startTime: 'desc' } });
-  if (!shift) throw new UserError('Please open a shift before recording expenses.');
+  return prisma.$transaction(async (tx) => {
+    const shift = await tx.shift.findFirst({ where: { status: 'Open' }, orderBy: { startTime: 'desc' } });
+    if (!shift) throw new UserError('Please open a shift before recording expenses.');
 
-  // Validate drawer cash if paying with Cash Drawer
-  if (paymentMethod === 'Cash') {
-    const summary = await summarizeShift(prisma, shift.id);
-    const availableCashInDrawer = shift.initialCash + summary.cashSales - summary.cashExpenses;
-    if (amount > availableCashInDrawer) {
-      throw new UserError(
-        `Cannot withdraw Rp ${amount.toLocaleString('id-ID')} in cash. Cash drawer currently only has Rp ${Math.max(0, availableCashInDrawer).toLocaleString('id-ID')}. Please select 'Bank Transfer' or 'Owner Funds' if paid outside the register.`
-      );
+    // Validate drawer cash if paying with Cash Drawer atomically
+    if (paymentMethod === 'Cash') {
+      const summary = await summarizeShift(tx, shift.id);
+      const availableCashInDrawer = shift.initialCash + summary.cashSales - summary.cashExpenses;
+      if (amount > availableCashInDrawer) {
+        throw new UserError(
+          `Cannot withdraw Rp ${amount.toLocaleString('id-ID')} in cash. Cash drawer currently only has Rp ${Math.max(0, availableCashInDrawer).toLocaleString('id-ID')}. Please select 'Bank Transfer' or 'Owner Funds' if paid outside the register.`
+        );
+      }
     }
-  }
 
-  const now = new Date();
-  return prisma.expense.create({
-    data: { name, amount, paymentMethod, startDate: now, endDate: now, shiftId: shift.id },
+    const now = new Date();
+    return tx.expense.create({
+      data: { name, amount, paymentMethod, startDate: now, endDate: now, shiftId: shift.id },
+    });
   });
 }
 

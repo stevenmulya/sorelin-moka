@@ -14,7 +14,16 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth-token';
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/login' || pathname.startsWith('/login/')) {
+  if (
+    pathname === '/login' ||
+    pathname.startsWith('/login/') ||
+    pathname.startsWith('/icons/') ||
+    pathname.startsWith('/sorelin-') ||
+    pathname === '/manifest.json' ||
+    pathname === '/icon.svg' ||
+    pathname === '/placeholder.jpg' ||
+    pathname === '/favicon.ico'
+  ) {
     return NextResponse.next();
   }
 
@@ -52,5 +61,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Aset statis build & file publik non-sensitif dikecualikan. Selain itu SEMUA path lewat proxy.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icon.svg|placeholder.jpg).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icon.svg|placeholder.jpg|sorelin-.*\\.png|icons/.*).*)'],
 };

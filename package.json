@@ -11,7 +11,8 @@
     "start:host": "next start -H 0.0.0.0",
     "lint": "eslint",
     "clean:uploads": "tsx scripts/clean-uploads.ts",
-    "db:turso:sync": "tsx scripts/sync-turso.ts"
+    "db:turso:sync": "tsx scripts/sync-turso.ts",
+    "db:reset": "tsx scripts/reset-db.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.8.0",

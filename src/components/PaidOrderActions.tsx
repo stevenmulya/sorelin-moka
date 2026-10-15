@@ -4,17 +4,21 @@ import { useState } from 'react';
 import { editPaymentMethod, cancelTransaction } from '@/app/actions';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';
 import { Settings2, Ban, Edit3, Check } from 'lucide-react';
+import { STATUS } from '@/lib/constants';
+import { formatRupiah } from '@/lib/utils';
 
 export default function PaidOrderActions({ 
   trxId, 
   trxAmount, 
   currentMethod, 
-  currentPaidAmount 
+  currentPaidAmount,
+  status
 }: { 
   trxId: number; 
   trxAmount: number; 
   currentMethod: string; 
   currentPaidAmount: number; 
+  status?: string;
 }) {
   const [mode, setMode] = useState<'idle' | 'edit' | 'cancel'>('idle');
   const [method, setMethod] = useState<'Cash' | 'QRIS' | 'Debit'>(
@@ -119,7 +123,7 @@ export default function PaidOrderActions({
             ) : (
               <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
                 <input key="edit-non-cash-input" type="hidden" name="paidAmount" value={trxAmount} />
-                <p className="font-semibold text-gray-900">Total: Rp {trxAmount.toLocaleString('id-ID')}</p>
+                <p className="font-semibold text-gray-900">Total: {formatRupiah(trxAmount)}</p>
                 <p className="text-[11px] text-gray-500">Non-cash payment calculated exact to order total.</p>
               </div>
             )}
@@ -143,40 +147,49 @@ export default function PaidOrderActions({
         </div>
       )}
 
-      {mode === 'cancel' && (
-        <div className="space-y-3 pt-1">
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-1">
-            <p className="text-xs font-bold text-red-900">Confirm Order Cancellation</p>
-            <p className="text-[11px] text-red-700">
-              Cancelling this order will return items to stock inventory and deduct the transaction from revenue reports.
-            </p>
-          </div>
-
-          <ActionForm 
-            action={cancelTransaction} 
-            confirmMessage="Are you sure you want to cancel this order and revert stock?"
-            reason={{ name: 'cancelReason', message: 'Cancellation reason (required):' }}
-            className="space-y-3"
-          >
-            <input type="hidden" name="transactionId" value={trxId} />
-            <div className="flex gap-2">
-              <SubmitButton 
-                pendingText="Cancelling..."
-                className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold text-xs hover:bg-red-700 shadow-sm transition-all"
-              >
-                Proceed & Revert Stock
-              </SubmitButton>
-              <button
-                type="button"
-                onClick={() => setMode('idle')}
-                className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-semibold transition-colors"
-              >
-                Close
-              </button>
+      {mode === 'cancel' && (() => {
+        const willRevertStock = status === STATUS.PREPARING || status === STATUS.READY;
+        return (
+          <div className="space-y-3 pt-1">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-1">
+              <p className="text-xs font-bold text-red-900">Confirm Order Cancellation</p>
+              <p className="text-[11px] text-red-700">
+                {willRevertStock
+                  ? 'Cancelling this order will return items to stock inventory and deduct the transaction from revenue reports.'
+                  : 'Cancelling this order will deduct the transaction from revenue reports. Stock is NOT returned because items were already picked up/completed.'}
+              </p>
             </div>
-          </ActionForm>
-        </div>
-      )}
+
+            <ActionForm 
+              action={cancelTransaction} 
+              confirmMessage={
+                willRevertStock
+                  ? 'Are you sure you want to cancel this order and revert stock?'
+                  : 'Are you sure you want to cancel this order? (Stock will not be reverted)'
+              }
+              reason={{ name: 'cancelReason', message: 'Cancellation reason (required):' }}
+              className="space-y-3"
+            >
+              <input type="hidden" name="transactionId" value={trxId} />
+              <div className="flex gap-2">
+                <SubmitButton 
+                  pendingText="Cancelling..."
+                  className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold text-xs hover:bg-red-700 shadow-sm transition-all"
+                >
+                  {willRevertStock ? 'Proceed & Revert Stock' : 'Proceed & Cancel Order'}
+                </SubmitButton>
+                <button
+                  type="button"
+                  onClick={() => setMode('idle')}
+                  className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </ActionForm>
+          </div>
+        );
+      })()}
     </div>
   );
 }

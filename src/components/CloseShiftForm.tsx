@@ -4,8 +4,11 @@ import { LogOut } from 'lucide-react';
 import { closeShift } from '@/app/actions';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';
 
+import { formatRupiah } from '@/lib/utils';
+
 export default function CloseShiftForm({ 
   shiftId, 
+  expectedCash,
   pendingCount,
   openedBy
 }: { 
@@ -28,7 +31,9 @@ export default function CloseShiftForm({
       
       <div>
         <label className="block text-sm font-bold text-gray-900 mb-1">Actual Cash (Rp)</label>
-        <p className="text-xs text-gray-500 mb-2">Total physical cash currently counted in the cash drawer.</p>
+        <p className="text-xs text-gray-500 mb-2">
+          Total physical cash counted in cash drawer (Expected: <span className="font-semibold text-gray-800">{formatRupiah(expectedCash)}</span>).
+        </p>
         <input 
           type="number" 
           name="actualCash" 

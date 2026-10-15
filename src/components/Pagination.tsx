@@ -43,26 +43,29 @@ export default function Pagination({
   const to = Math.min(current * pageSize, totalItems);
 
   return (
-    <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-white">
-      <span className="text-sm text-gray-500">
-        Showing {from} to {to} of {totalItems} items
+    <div className="px-6 py-4 border-t border-[#EADBCC] flex items-center justify-between bg-[#FFFDF9]">
+      <span className="text-sm text-[#7A6251]">
+        Showing <span className="font-semibold text-[#382213]">{from}</span> to <span className="font-semibold text-[#382213]">{to}</span> of{' '}
+        <span className="font-semibold text-[#382213]">{totalItems}</span> items
       </span>
       <div className="flex items-center gap-1">
         <Link
           href={buildHref(basePath, params, Math.max(1, current - 1))}
-          className={`p-2 rounded-md ${current === 1 ? 'text-gray-300 pointer-events-none' : 'text-gray-500 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-colors ${
+            current === 1 ? 'text-[#CBB9A8] pointer-events-none' : 'text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2]'
+          }`}
         >
           <ChevronLeft className="h-4 w-4" />
         </Link>
         {pageList(current, totalPages).map((p, i) =>
           p === '…' ? (
-            <span key={`gap-${i}`} className="min-w-[32px] h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
+            <span key={`gap-${i}`} className="min-w-[32px] h-8 flex items-center justify-center text-[#A89687] text-sm">…</span>
           ) : (
             <Link
               key={p}
               href={buildHref(basePath, params, p)}
-              className={`min-w-[32px] h-8 flex items-center justify-center rounded-md text-sm font-medium ${
-                current === p ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
+              className={`min-w-[32px] h-8 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${
+                current === p ? 'bg-[#4A2E1B] text-[#FFFDF9] shadow-xs' : 'text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2]'
               }`}
             >
               {p}
@@ -71,7 +74,9 @@ export default function Pagination({
         )}
         <Link
           href={buildHref(basePath, params, Math.min(totalPages, current + 1))}
-          className={`p-2 rounded-md ${current === totalPages ? 'text-gray-300 pointer-events-none' : 'text-gray-500 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-colors ${
+            current === totalPages ? 'text-[#CBB9A8] pointer-events-none' : 'text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2]'
+          }`}
         >
           <ChevronRight className="h-4 w-4" />
         </Link>

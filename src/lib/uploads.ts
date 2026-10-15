@@ -92,9 +92,11 @@ export async function saveProductImage(file: File): Promise<string> {
 
 /** Simpan selfie dari data URL (png/jpeg). Awalan `selfie_` dipakai untuk pembatasan akses admin. */
 export async function saveSelfieDataUrl(dataUrl: string): Promise<string> {
-  const m = /^data:image\/(png|jpe?g);base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  const clean = (dataUrl || '').trim();
+  const m = /^data:image\/(png|jpe?g);base64,\s*([A-Za-z0-9+/=\r\n\s]+)$/.exec(clean);
   if (!m) throw new UserError('Format foto tidak valid.');
-  const buf = Buffer.from(m[2], 'base64');
+  const base64Data = m[2].replace(/\s+/g, '');
+  const buf = Buffer.from(base64Data, 'base64');
   if (buf.length === 0 || buf.length > MAX_SELFIE_BYTES) throw new UserError('Ukuran foto tidak valid (maks 2 MB).');
   const kind = detectImage(buf);
   if (!kind || (kind.ext !== 'png' && kind.ext !== 'jpg')) throw new UserError('Foto bukan gambar PNG/JPEG yang valid.');

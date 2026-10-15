@@ -4,19 +4,19 @@ import { cn } from '@/lib/utils';
 export function getStatusTheme(status: string) {
   switch (status) {
     case STATUS.WAITING:
-      return 'bg-amber-50 text-amber-700 border-amber-200';
+      return 'bg-[#FEF6E7] text-[#9A6208] border-[#FAD899]';
     case STATUS.PREPARING:
-      return 'bg-blue-50 text-blue-700 border-blue-200';
+      return 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]';
     case STATUS.READY:
-      return 'bg-purple-50 text-purple-700 border-purple-200';
+      return 'bg-[#FAF5FF] text-[#6B21A8] border-[#E9D5FF]';
     case STATUS.PICKED_UP:
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      return 'bg-[#F0FDF4] text-[#166534] border-[#BBF7D0]';
     case STATUS.CLOSED:
-      return 'bg-gray-100 text-gray-700 border-gray-200';
+      return 'bg-[#FAF7F2] text-[#7A6251] border-[#EADBCC]';
     case STATUS.CANCELLED:
-      return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]';
     default:
-      return 'bg-gray-50 text-gray-700 border-gray-200';
+      return 'bg-[#FAF7F2] text-[#7A6251] border-[#EADBCC]';
   }
 }
 

@@ -32,14 +32,14 @@ export default function HistoryWidget({ logs }: { logs: StockLogItem[] }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mb-8">
+    <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs mb-6">
       <div 
-        className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white cursor-pointer hover:bg-gray-50 transition-colors"
+        className="px-5 py-4 border-b border-[#EADBCC] flex items-center justify-between bg-[#FAF7F2] cursor-pointer hover:bg-[#FAF7F2]/80 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-gray-500" />
-          <h2 className="text-sm font-semibold text-gray-900">Stock Movement History</h2>
+          <Clock className="h-4 w-4 text-[#C69234]" />
+          <h2 className="text-sm font-bold text-[#4A2E1B]">Stock Movement History</h2>
         </div>
         <button 
           type="button"
@@ -47,7 +47,7 @@ export default function HistoryWidget({ logs }: { logs: StockLogItem[] }) {
             e.stopPropagation();
             setExpanded(!expanded);
           }}
-          className="text-gray-500 hover:text-gray-900 flex items-center gap-1 text-xs font-medium bg-gray-100 px-3 py-1.5 rounded-md"
+          className="text-[#7A6251] hover:text-[#4A2E1B] flex items-center gap-1 text-xs font-semibold bg-[#FFFDF9] border border-[#EADBCC] px-3 py-1.5 rounded-lg shadow-xs cursor-pointer"
         >
           {expanded ? (
             <><ChevronUp className="h-4 w-4" /> Collapse</>
@@ -58,7 +58,7 @@ export default function HistoryWidget({ logs }: { logs: StockLogItem[] }) {
       </div>
 
       {expanded && (
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-[#EADBCC]/60">
           {logs.length > 0 ? (
             logs.slice(0, 10).map((log) => {
               let sentence = '';
@@ -66,13 +66,13 @@ export default function HistoryWidget({ logs }: { logs: StockLogItem[] }) {
               
               if (log.type === 'IN') {
                 sentence = `${log.giver || 'Someone'} added ${log.quantity} pcs of ${log.product.name}`;
-                badgeColor = 'bg-emerald-100 text-emerald-700';
+                badgeColor = 'bg-[#F0FDF4] text-emerald-700 border border-[#DCFCE7]';
               } else if (log.type === 'OUT') {
                 sentence = `${log.receiver || 'Someone'} removed ${log.quantity} pcs of ${log.product.name}`;
-                badgeColor = 'bg-amber-100 text-amber-700';
+                badgeColor = 'bg-[#FEF6E7] text-[#9E7324] border border-[#F3E3BA]';
               } else {
                 sentence = `Stock of ${log.product.name} reset to ${log.quantity} pcs`;
-                badgeColor = 'bg-gray-100 text-gray-700';
+                badgeColor = 'bg-[#FAF5FF] text-[#7E22CE] border border-[#E9D5FF]';
               }
 
               if (log.notes) {
@@ -80,23 +80,23 @@ export default function HistoryWidget({ logs }: { logs: StockLogItem[] }) {
               }
 
               return (
-                <div key={log.id} className="p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+                <div key={log.id} className="p-4 flex items-center justify-between hover:bg-[#FAF7F2]/60 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${badgeColor}`}>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${badgeColor}`}>
                       {log.type}
                     </span>
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm font-medium text-[#382213]">
                       {sentence}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-400 font-medium whitespace-nowrap">
+                  <div className="text-xs text-[#A89687] font-medium whitespace-nowrap">
                     {timeAgo(log.createdAt)}
                   </div>
                 </div>
               );
             })
           ) : (
-            <div className="text-center text-gray-500 text-sm py-8">
+            <div className="text-center text-[#7A6251] text-sm py-8">
               No stock movement history recorded yet.
             </div>
           )}

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { parseInteger } from '@/lib/validation';
-import { formatWibDate } from '@/lib/dates';
+import { formatWibDate, formatWibTime, formatWibDateTime } from '@/lib/dates';
 import { PAID_STATUSES } from '@/lib/constants';
 
 export async function GET(request: Request) {
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   const rows = [];
   
   for (const trx of shift.transactions) {
-    const timeStr = trx.createdAt.toLocaleTimeString('id-ID', { hour12: false });
+    const timeStr = formatWibTime(trx.createdAt);
     const dateStr = formatWibDate(trx.createdAt);
     
     // Format items as a single string
@@ -87,8 +87,8 @@ export async function GET(request: Request) {
   const totalGrossProfit = totalGross - totalCogs;
   const trueNetProfit = totalGrossProfit - shiftOpex;
   
-  const startStr = shift.startTime.toLocaleString('id-ID');
-  const endStr = shift.endTime ? shift.endTime.toLocaleString('id-ID') : 'Ongoing';
+  const startStr = formatWibDateTime(shift.startTime);
+  const endStr = shift.endTime ? formatWibDateTime(shift.endTime) : 'Ongoing';
   let durationStr = '-';
   if (shift.endTime) {
     const ms = shift.endTime.getTime() - shift.startTime.getTime();

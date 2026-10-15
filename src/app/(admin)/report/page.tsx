@@ -149,81 +149,81 @@ export default async function ReportPage({
   const topProducts = itemStats.map((stat) => [stat.productName, stat._sum.quantity || 0] as const);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-12">
-      <div className="flex flex-col gap-5 border-b border-gray-200 pb-6">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      <div className="flex flex-col gap-5 border-b border-[#EADBCC] pb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Business Report</h1>
-            <p className="text-sm text-gray-500 mt-1">Deep dive into your net profit, kitchen speed, and sales data.</p>
+            <h1 className="text-2xl font-bold text-[#4A2E1B] tracking-tight">Business Report</h1>
+            <p className="text-sm text-[#7A6251] mt-1">Deep dive into your net profit, kitchen speed, and sales data.</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full border border-blue-200 shadow-sm whitespace-nowrap">
+            <span className="px-3 py-1 bg-[#FDF0D0] text-[#7A4E0B] text-xs font-semibold rounded-full border border-[#F2DB94] shadow-xs whitespace-nowrap">
               {shiftsCount} Shift{shiftsCount !== 1 ? 's' : ''} Detected
             </span>
             <a
               href={`/api/export?start=${startStr}&end=${endStr}&preset=${preset}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 border border-transparent text-white rounded-lg font-medium text-sm hover:bg-emerald-700 transition-colors shadow-sm whitespace-nowrap"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs whitespace-nowrap"
             >
               <Download className="h-4 w-4" />
-              Export Data (.xlsx)
+              Export Excel (.xlsx)
             </a>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-100">
+        <div className="flex flex-wrap items-center gap-4 bg-[#FFFDF9] p-2 rounded-2xl border border-[#EADBCC]">
           <DateFilter defaultStart={startStr} defaultEnd={endStr} activePreset={preset} />
         </div>
       </div>
 
       {/* TOP FINANCIAL WIDGETS */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Financial Overview</h2>
+        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4">Financial Overview</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs hover:border-[#D8C6B5] transition-all">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-emerald-50 rounded-md">
-                <Banknote className="h-4 w-4 text-emerald-600" />
+              <div className="p-2 bg-[#F0FDF4] rounded-lg">
+                <Banknote className="h-4 w-4 text-emerald-700" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Gross Revenue</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Gross Revenue</p>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900">{formatRupiah(todayGrossRevenue)}</h3>
-            <p className="text-xs text-gray-400 mt-1">Total incoming sales</p>
+            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(todayGrossRevenue)}</h3>
+            <p className="text-xs text-[#7A6251] mt-1">Total incoming sales</p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs hover:border-[#D8C6B5] transition-all">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-50 rounded-md">
+              <div className="p-2 bg-[#FEF2F2] rounded-lg">
                 <TrendingUp className="h-4 w-4 text-red-600" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Total COGS</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Total COGS</p>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900">{formatRupiah(todayCogs)}</h3>
-            <p className="text-xs text-gray-400 mt-1">Cost of goods sold</p>
+            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(todayCogs)}</h3>
+            <p className="text-xs text-[#7A6251] mt-1">Cost of goods sold</p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs hover:border-[#D8C6B5] transition-all">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-amber-50 rounded-md">
-                <CalendarDays className="h-4 w-4 text-amber-600" />
+              <div className="p-2 bg-[#FEF6E7] rounded-lg">
+                <CalendarDays className="h-4 w-4 text-[#9A6208]" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Operating Expenses</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Operating Expenses</p>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900">{formatRupiah(todayApportionedOpex)}</h3>
-            <p className="text-xs text-gray-400 mt-1">Total expenses for this period</p>
+            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{formatRupiah(todayApportionedOpex)}</h3>
+            <p className="text-xs text-[#7A6251] mt-1">Total expenses for this period</p>
           </div>
 
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 shadow-sm relative overflow-hidden">
+          <div className="bg-[#3D2413] rounded-2xl border border-[#4A2E1B] p-5 shadow-xs relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <TrendingUp className="h-16 w-16 text-white" />
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-white/10 rounded-md">
-                  <TrendingUp className="h-4 w-4 text-white" />
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <TrendingUp className="h-4 w-4 text-[#FDF0D0]" />
                 </div>
-                <p className="text-xs font-medium uppercase tracking-wider text-gray-300">True Net Profit</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#FDF0D0]">True Net Profit</p>
               </div>
-              <h3 className="text-xl font-semibold text-white">{formatRupiah(todayNetProfit)}</h3>
-              <p className="text-xs text-gray-400 mt-1">
+              <h3 className="text-2xl font-bold tracking-tight text-[#FFFDF9]">{formatRupiah(todayNetProfit)}</h3>
+              <p className="text-xs text-[#EADBCC] mt-1">
                 {daysInRange ? `Across ${daysInRange} selected days` : 'All-time overview'}
               </p>
             </div>
@@ -233,54 +233,54 @@ export default async function ReportPage({
 
       {/* OPERATIONAL WIDGETS */}
       <div className="pt-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Operational Performance</h2>
+        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4">Operational Performance</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-50 rounded-md">
-                <Clock className="h-4 w-4 text-blue-600" />
+              <div className="p-2 bg-[#EFF6FF] rounded-lg">
+                <Clock className="h-4 w-4 text-[#1D4ED8]" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Avg. Kitchen Prep Time</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Avg. Kitchen Prep Time</p>
             </div>
-            <h3 className="text-2xl font-semibold text-gray-900">
-              {avgPrepTimeMinutes} <span className="text-sm font-normal text-gray-500">minutes</span>
+            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">
+              {avgPrepTimeMinutes} <span className="text-sm font-normal text-[#7A6251]">minutes</span>
             </h3>
-            <p className="text-xs text-gray-400 mt-1">From &quot;Preparing&quot; to &quot;Ready&quot;</p>
+            <p className="text-xs text-[#7A6251] mt-1">From &quot;Preparing&quot; to &quot;Ready&quot;</p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-purple-50 rounded-md">
-                <Users className="h-4 w-4 text-purple-600" />
+              <div className="p-2 bg-[#FAF5FF] rounded-lg">
+                <Users className="h-4 w-4 text-[#6B21A8]" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Customer Base</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Customer Base</p>
             </div>
-            <h3 className="text-2xl font-semibold text-gray-900">
-              {uniqueCustomers} <span className="text-sm font-normal text-gray-500">customers</span>
+            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">
+              {uniqueCustomers} <span className="text-sm font-normal text-[#7A6251]">customers</span>
             </h3>
-            <p className="text-xs text-gray-400 mt-1">Unique customer names recorded</p>
+            <p className="text-xs text-[#7A6251] mt-1">Unique customer names recorded</p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] p-5 shadow-xs">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-orange-50 rounded-md">
-                <Coffee className="h-4 w-4 text-orange-600" />
+              <div className="p-2 bg-[#FDF0D0] rounded-lg">
+                <Coffee className="h-4 w-4 text-[#7A4E0B]" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Peak Busiest Hours</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7A6251]">Peak Busiest Hours</p>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900">{peakHourStr}</h3>
-            <p className="text-xs text-gray-400 mt-1">Time of day with most orders (WIB)</p>
+            <h3 className="text-2xl font-bold tracking-tight text-[#4A2E1B]">{peakHourStr}</h3>
+            <p className="text-xs text-[#7A6251] mt-1">Time of day with most orders (WIB)</p>
           </div>
         </div>
       </div>
 
       {/* BEST SELLERS SECTION */}
       <div className="pt-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Product Analytics</h2>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="p-5 border-b border-gray-100 bg-gray-50/50">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
+        <h2 className="text-lg font-bold text-[#4A2E1B] mb-4">Product Analytics</h2>
+        <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-[#EADBCC] bg-[#FAF7F2]">
+            <h2 className="text-sm font-bold text-[#4A2E1B] flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-700" />
               Top Best Selling Items
             </h2>
           </div>
@@ -288,31 +288,31 @@ export default async function ReportPage({
             {topProducts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {topProducts.map(([name, qty], index) => (
-                  <div key={name} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                  <div key={name} className="flex items-center justify-between p-4 bg-[#FAF7F2] rounded-xl border border-[#EADBCC]">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shadow-sm ${
+                        className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shadow-xs ${
                           index === 0
-                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                            ? 'bg-[#FDF0D0] text-[#7A4E0B] border border-[#F2DB94]'
                             : index === 1
-                            ? 'bg-gray-200 text-gray-700 border border-gray-300'
+                            ? 'bg-[#EADBCC] text-[#4A2E1B] border border-[#D8C6B5]'
                             : index === 2
-                            ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                            : 'bg-white text-gray-400 border border-gray-200'
+                            ? 'bg-[#F3ECE1] text-[#6E5748] border border-[#EADBCC]'
+                            : 'bg-[#FFFDF9] text-[#7A6251] border border-[#EADBCC]'
                         }`}
                       >
                         {index + 1}
                       </div>
-                      <span className="text-sm font-semibold text-gray-900">{name}</span>
+                      <span className="text-sm font-semibold text-[#382213]">{name}</span>
                     </div>
-                    <span className="text-sm font-bold text-emerald-600">
-                      {qty} <span className="font-medium text-gray-500 uppercase">sold</span>
+                    <span className="text-sm font-bold text-emerald-800">
+                      {qty} <span className="font-semibold text-[#7A6251] uppercase text-xs">sold</span>
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center text-sm text-gray-500 py-8">No sales data found for the selected period.</div>
+              <div className="text-center text-sm text-[#7A6251] py-8">No sales data found for the selected period.</div>
             )}
           </div>
         </div>

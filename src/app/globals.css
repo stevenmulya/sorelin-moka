@@ -2,13 +2,39 @@
 
 @theme {
   --color-border: hsl(214.3 31.8% 91.4%);
+  --color-sorelin-cream: #FAF7F2;
+  --color-sorelin-brown: #4A2E1B;
+  --color-sorelin-brown-dark: #3D2413;
+  --color-sorelin-brown-deep: #28170D;
+  --color-sorelin-milk: #FFFDF9;
+  --color-sorelin-gold: #C69234;
+  --color-sorelin-gold-light: #FDF0D0;
+  --color-sorelin-border: #EADBCC;
+  --color-sorelin-border-light: #F3ECE1;
+  --color-sorelin-muted: #7A6251;
 }
 
 @layer base {
   body {
-    background-color: #f9fafb; /* bg-gray-50 */
-    color: #111827; /* text-gray-900 */
+    background-color: #FAF7F2;
+    color: #382213;
   }
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 @media print {
@@ -20,16 +46,28 @@
   /* Show only the printable receipt */
   #printable-receipt, #printable-receipt * {
     visibility: visible;
+    color: #000000 !important;
+    background-color: transparent !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
-  /* Position it perfectly at the top left of the paper */
+  /* Position it perfectly at the top left of the thermal paper roll */
   #printable-receipt {
     position: absolute;
     left: 0;
     top: 0;
-    width: 58mm; /* Thermal printer width */
-    margin: 0;
-    padding: 0;
+    width: 58mm !important; /* Blueprint thermal printer width */
+    max-width: 58mm !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
     box-shadow: none !important;
+    background-color: #ffffff !important;
+  }
+
+  /* Force pure monochrome high-contrast for thermal printer rasterizer */
+  #printable-receipt img {
+    filter: grayscale(100%) contrast(250%) brightness(105%) !important;
+    image-rendering: pixelated !important;
   }
 }

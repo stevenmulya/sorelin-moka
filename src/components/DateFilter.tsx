@@ -19,7 +19,7 @@ export default function DateFilter({ defaultStart, defaultEnd, activePreset }: {
     const params = new URLSearchParams(searchParams);
     
     params.set('preset', preset);
-    if (preset === 'this_shift' || preset === 'all') {
+    if (preset !== 'custom') {
       params.delete('start');
       params.delete('end');
     } else {
@@ -33,26 +33,7 @@ export default function DateFilter({ defaultStart, defaultEnd, activePreset }: {
   };
 
   const setPreset = (type: 'this_shift' | 'today' | 'week' | 'month' | 'all') => {
-    const d = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    
-    const todayStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-
-    if (type === 'today') {
-      applyRange(todayStr, todayStr, 'today');
-    } else if (type === 'week') {
-      const past = new Date(d);
-      past.setDate(past.getDate() - 7);
-      const pastStr = `${past.getFullYear()}-${pad(past.getMonth()+1)}-${pad(past.getDate())}`;
-      applyRange(pastStr, todayStr, 'week');
-    } else if (type === 'month') {
-      const past = new Date(d);
-      past.setDate(past.getDate() - 30);
-      const pastStr = `${past.getFullYear()}-${pad(past.getMonth()+1)}-${pad(past.getDate())}`;
-      applyRange(pastStr, todayStr, 'month');
-    } else {
-      applyRange('', '', type);
-    }
+    applyRange('', '', type);
   };
 
   return (

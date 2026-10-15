@@ -85,36 +85,36 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
   return (
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Product List (Left) */}
-      <div className="flex-1 bg-white border border-gray-200 rounded-xl flex flex-col shadow-sm min-h-[620px] h-[calc(100vh-8.5rem)]">
+      <div className="flex-1 bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl flex flex-col shadow-xs min-h-[620px] h-[calc(100vh-8.5rem)]">
         
         {/* Toolbar */}
-        <div className="p-4 border-b border-gray-200 bg-white flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="p-4 border-b border-[#EADBCC] bg-[#FFFDF9] flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A89687]" />
             <input 
               type="text" 
               placeholder="Search menu or item..." 
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-[#FAF7F2] border border-[#EADBCC] rounded-xl text-sm text-[#382213] placeholder-[#A89687] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B]/20 focus:border-[#4A2E1B] focus:bg-[#FFFDF9] transition-all"
             />
           </div>
           <div className="relative w-full sm:w-60">
             <select 
               value={selectedType}
               onChange={(e) => { setSelectedType(e.target.value); setCurrentPage(1); }}
-              className="w-full appearance-none pl-10 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white text-gray-700 transition-all font-medium"
+              className="w-full appearance-none pl-10 pr-8 py-2 bg-[#FAF7F2] border border-[#EADBCC] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2E1B]/20 focus:border-[#4A2E1B] focus:bg-[#FFFDF9] text-[#382213] transition-all font-semibold"
             >
               {uniqueTypes.map(t => (
                 <option key={t as string} value={t as string}>{t === 'All' ? 'All Categories' : t}</option>
               ))}
             </select>
-            <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A89687]" />
           </div>
         </div>
 
         {/* Product Grid - Fixed 2 columns */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50/40">
+        <div className="flex-1 overflow-y-auto p-4 bg-[#FAF7F2]/40">
           {paginatedProducts.length > 0 ? (
             <div className="grid grid-cols-2 gap-3.5">
               {paginatedProducts.map((product) => {
@@ -128,23 +128,23 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                   <div
                     key={product.id}
                     onClick={() => !isOutOfStock && addToCart(product)}
-                    className={`bg-white border rounded-xl p-3.5 transition-all flex flex-col justify-between select-none ${
+                    className={`bg-[#FFFDF9] border rounded-2xl p-3.5 transition-all flex flex-col justify-between select-none ${
                       isOutOfStock
-                        ? 'opacity-60 border-gray-200 cursor-not-allowed bg-gray-50/60'
-                        : 'border-gray-200/90 hover:border-gray-900 hover:shadow-md cursor-pointer active:scale-[0.99]'
+                        ? 'opacity-60 border-[#EADBCC] cursor-not-allowed bg-[#FAF7F2]/60'
+                        : 'border-[#EADBCC] hover:border-[#4A2E1B] hover:shadow-md cursor-pointer active:scale-[0.99]'
                     }`}
                   >
                     {/* Top: Category Tag & Stock Pill */}
                     <div className="flex items-center justify-between gap-1 mb-2">
-                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider truncate max-w-[120px]">
+                      <span className="text-[10px] font-bold text-[#7A6251] uppercase tracking-wider truncate max-w-[120px]">
                         {product.type?.name || 'Item'}
                       </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         isOutOfStock
-                          ? 'bg-red-100 text-red-700'
+                          ? 'bg-[#FEF2F2] text-red-700 border border-[#FECACA]'
                           : remainingStock <= 5
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          ? 'bg-[#FEF6E7] text-[#9E7324] border border-[#F3E3BA]'
+                          : 'bg-[#F0FDF4] text-emerald-700 border border-[#DCFCE7]'
                       }`}>
                         {isOutOfStock ? 'Sold Out' : `${remainingStock} left`}
                       </span>
@@ -152,7 +152,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
 
                     {/* Thumbnail Image (if available) */}
                     {product.images?.[0]?.url && (
-                      <div className="w-full h-24 mb-2 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+                      <div className="w-full h-24 mb-2 rounded-xl overflow-hidden bg-[#FAF7F2] border border-[#EADBCC]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                           src={product.images[0].url} 
@@ -163,24 +163,24 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                     )}
 
                     {/* Middle: Product Name */}
-                    <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 leading-snug mb-3">
+                    <h3 className="font-bold text-[#382213] text-sm line-clamp-2 leading-snug mb-3">
                       {product.name}
                     </h3>
 
                     {/* Bottom: Price */}
-                    <div className="mt-auto pt-2 border-t border-gray-100 flex items-baseline justify-between">
+                    <div className="mt-auto pt-2 border-t border-[#EADBCC]/60 flex items-baseline justify-between">
                       <div>
-                        <p className="text-sm font-bold text-gray-900">
+                        <p className="text-sm font-bold text-[#4A2E1B]">
                           Rp {eff.toLocaleString('id-ID')}
                         </p>
                         {hasDiscount && (
-                          <p className="text-[11px] text-gray-400 line-through">
+                          <p className="text-[11px] text-[#A89687] line-through">
                             Rp {product.price.toLocaleString('id-ID')}
                           </p>
                         )}
                       </div>
                       {currentCartQty > 0 && (
-                        <span className="bg-gray-900 text-white text-[11px] font-bold px-2 py-0.5 rounded-md">
+                        <span className="bg-[#4A2E1B] text-[#FFFDF9] text-[11px] font-bold px-2 py-0.5 rounded-md">
                           {currentCartQty}x
                         </span>
                       )}
@@ -190,14 +190,14 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
               })}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2 py-12">
-              <PackageX className="h-10 w-10 text-gray-300" />
-              <p className="text-sm font-medium text-gray-500">No products match your search.</p>
+            <div className="h-full flex flex-col items-center justify-center text-[#A89687] space-y-2 py-12">
+              <PackageX className="h-10 w-10 text-[#CBB9A8]" />
+              <p className="text-sm font-semibold text-[#7A6251]">No products match your search.</p>
               {(searchQuery || selectedType !== 'All') && (
                 <button
                   type="button"
                   onClick={() => { setSearchQuery(''); setSelectedType('All'); setCurrentPage(1); }}
-                  className="text-xs text-blue-600 hover:underline pt-1"
+                  className="text-xs text-[#C69234] hover:underline pt-1 font-semibold cursor-pointer"
                 >
                   Clear filters
                 </button>
@@ -207,30 +207,30 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
         </div>
 
         {/* Pagination Bar */}
-        <div className="px-4 py-3 border-t border-gray-200 bg-white flex items-center justify-between text-xs text-gray-600">
+        <div className="px-4 py-3 border-t border-[#EADBCC] bg-[#FFFDF9] flex items-center justify-between text-xs text-[#7A6251]">
           <div>
-            Showing <span className="font-semibold text-gray-900">{startItem}–{endItem}</span> of{' '}
-            <span className="font-semibold text-gray-900">{filteredProducts.length}</span> items
+            Showing <span className="font-semibold text-[#382213]">{startItem}–{endItem}</span> of{' '}
+            <span className="font-semibold text-[#382213]">{filteredProducts.length}</span> items
             {totalPages > 1 && (
-              <span className="text-gray-400 ml-1.5">• Page {safeCurrentPage} of {totalPages}</span>
+              <span className="text-[#A89687] ml-1.5">• Page {safeCurrentPage} of {totalPages}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={safeCurrentPage === 1}
-              className="p-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+              className="p-1.5 border border-[#EADBCC] rounded-xl text-[#7A6251] hover:bg-[#FAF7F2] hover:text-[#4A2E1B] disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
               title="Previous Page"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="px-2 font-semibold text-gray-700">
+            <span className="px-2 font-bold text-[#382213]">
               {safeCurrentPage} / {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage === totalPages}
-              className="p-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+              className="p-1.5 border border-[#EADBCC] rounded-xl text-[#7A6251] hover:bg-[#FAF7F2] hover:text-[#4A2E1B] disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
               title="Next Page"
             >
               <ChevronRight className="h-4 w-4" />
@@ -241,51 +241,51 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
       </div>
 
       {/* Cart / Checkout (Right) */}
-      <div className="w-full lg:w-[380px] bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col min-h-[620px] h-[calc(100vh-8.5rem)] sticky top-6">
-        <div className="p-4 border-b border-gray-200 flex items-center gap-3 bg-gray-50/50">
-          <ShoppingCart className="h-4 w-4 text-gray-600" />
-          <h2 className="text-base font-semibold text-gray-800">Current Order</h2>
-          <span className="ml-auto bg-gray-900 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">
+      <div className="w-full lg:w-[380px] bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl shadow-xs flex flex-col min-h-[620px] h-[calc(100vh-8.5rem)] sticky top-6">
+        <div className="p-4 border-b border-[#EADBCC] flex items-center gap-3 bg-[#FAF7F2]">
+          <ShoppingCart className="h-4 w-4 text-[#C69234]" />
+          <h2 className="text-base font-bold text-[#4A2E1B]">Current Order</h2>
+          <span className="ml-auto bg-[#4A2E1B] text-[#FFFDF9] text-xs font-bold px-2.5 py-0.5 rounded-full">
             {cart.reduce((sum, item) => sum + item.quantity, 0)} items
           </span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2 py-10">
-              <ShoppingCart className="h-8 w-8 text-gray-300" />
-              <p className="text-sm font-medium">Cart is empty</p>
-              <p className="text-xs text-gray-400">Select items on the left to add to order</p>
+            <div className="h-full flex flex-col items-center justify-center text-[#A89687] space-y-2 py-10">
+              <ShoppingCart className="h-8 w-8 text-[#CBB9A8]" />
+              <p className="text-sm font-semibold text-[#7A6251]">Cart is empty</p>
+              <p className="text-xs text-[#A89687]">Select items on the left to add to order</p>
             </div>
           ) : (
             cart.map((item) => {
               const eff = effectivePrice(item.product);
               return (
-                <div key={item.product.id} className="flex flex-col gap-2 pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+                <div key={item.product.id} className="flex flex-col gap-2 pb-3 border-b border-[#EADBCC]/60 last:border-0 last:pb-0">
                   <div className="flex justify-between items-start">
-                    <p className="text-sm font-semibold text-gray-800 pr-4">{item.product.name}</p>
-                    <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                    <p className="text-sm font-semibold text-[#382213] pr-4">{item.product.name}</p>
+                    <p className="text-sm font-bold text-[#4A2E1B] whitespace-nowrap">
                       Rp {(eff * item.quantity).toLocaleString('id-ID')}
                     </p>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500">@ Rp {eff.toLocaleString('id-ID')}</p>
-                    <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg p-1 border border-gray-200">
+                    <p className="text-xs text-[#7A6251]">@ Rp {eff.toLocaleString('id-ID')}</p>
+                    <div className="flex items-center gap-1.5 bg-[#FAF7F2] rounded-xl p-1 border border-[#EADBCC]">
                       <button
                         type="button"
                         onClick={() => removeFromCart(item.product.id)}
-                        className="p-1 text-gray-600 hover:bg-white hover:shadow-sm rounded transition-all"
+                        className="p-1 text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FFFDF9] hover:shadow-xs rounded-lg transition-all cursor-pointer"
                         title="Decrease"
                       >
                         <Minus className="h-3 w-3" />
                       </button>
-                      <span className="text-xs font-bold w-6 text-center text-gray-800">
+                      <span className="text-xs font-bold w-6 text-center text-[#382213]">
                         {item.quantity}
                       </span>
                       <button
                         type="button"
                         onClick={() => addToCart(item.product)}
-                        className="p-1 text-gray-600 hover:bg-white hover:shadow-sm rounded transition-all"
+                        className="p-1 text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FFFDF9] hover:shadow-xs rounded-lg transition-all cursor-pointer"
                         title="Increase"
                       >
                         <Plus className="h-3 w-3" />
@@ -298,17 +298,17 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-200 bg-white space-y-3">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-            <span className="text-gray-500 text-sm font-medium">Total</span>
-            <span className="text-xl font-black text-gray-900">
+        <div className="p-4 border-t border-[#EADBCC] bg-[#FFFDF9] space-y-3">
+          <div className="flex justify-between items-center pb-2 border-b border-[#EADBCC]/60">
+            <span className="text-[#7A6251] text-sm font-semibold">Total</span>
+            <span className="text-xl font-bold text-[#4A2E1B]">
               Rp {totalAmount.toLocaleString('id-ID')}
             </span>
           </div>
 
           <ActionForm action={createTransaction} className="space-y-3">
             <div>
-              <label htmlFor="customer" className="block text-xs font-semibold text-gray-700 mb-1">
+              <label htmlFor="customer" className="block text-xs font-semibold text-[#7A6251] mb-1">
                 Customer Name
               </label>
               <input
@@ -320,7 +320,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                 placeholder="Enter customer name..."
                 required
                 maxLength={60}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all font-medium"
+                className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#EADBCC] rounded-xl text-sm text-[#382213] placeholder-[#A89687] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B]/20 focus:border-[#4A2E1B] focus:bg-[#FFFDF9] transition-all font-medium"
               />
             </div>
             
@@ -331,7 +331,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                 name="customerEmail"
                 placeholder="Email (Optional)"
                 maxLength={120}
-                className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+                className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#EADBCC] rounded-xl text-xs text-[#382213] placeholder-[#A89687] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B]/20 focus:border-[#4A2E1B] focus:bg-[#FFFDF9] transition-all"
               />
               <input
                 type="tel"
@@ -339,7 +339,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                 name="customerPhone"
                 placeholder="Phone (Optional)"
                 maxLength={20}
-                className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+                className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#EADBCC] rounded-xl text-xs text-[#382213] placeholder-[#A89687] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B]/20 focus:border-[#4A2E1B] focus:bg-[#FFFDF9] transition-all"
               />
             </div>
             
@@ -355,7 +355,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
             <SubmitButton
               pendingText="Creating Order..."
               disabled={cart.length === 0 || !customerName.trim()}
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-all shadow-sm"
+              className="w-full py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-sm font-bold hover:bg-[#3D2413] transition-all shadow-xs cursor-pointer disabled:opacity-50"
             >
               Create Order
             </SubmitButton>

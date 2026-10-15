@@ -758,7 +758,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
             <button
               type="submit"
-              className="w-full mt-2 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs active:scale-95"
+              className="w-full mt-2 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-xl text-xs font-semibold transition-all shadow-xs active:scale-95 cursor-pointer"
             >
               Next: Selfie Photo
             </button>
@@ -782,7 +782,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
               setPhoto(null);
               setStep('biodata');
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#6E5748] hover:text-[#3B2314] hover:bg-[#F3ECE1]"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#6E5748] hover:text-[#3B2314] hover:bg-[#F3ECE1] cursor-pointer"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back</span>
@@ -815,7 +815,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
               <button
                 type="button"
                 onClick={takePhoto}
-                className="px-5 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-full text-xs font-semibold flex items-center gap-2 shadow-xs active:scale-95 transition-all"
+                className="px-5 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-full text-xs font-semibold flex items-center gap-2 shadow-xs active:scale-95 transition-all cursor-pointer"
               >
                 <Camera className="h-3.5 w-3.5 text-[#FCE8B3]" />
                 <span>Take Photo</span>
@@ -828,9 +828,9 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                   handleSubmit('');
                 }}
                 disabled={loading}
-                className="text-[11px] text-[#7A6251] hover:text-[#3B2314] underline font-medium"
+                className="text-[11px] text-[#7A6251] hover:text-[#3B2314] underline font-medium cursor-pointer"
               >
-                Skip photo & submit order now →
+                Skip Photo & Submit Order →
               </button>
             </div>
           ) : (
@@ -838,7 +838,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
               <button
                 type="button"
                 onClick={() => setPhoto(null)}
-                className="flex-1 py-2 bg-[#FFFDF9] border border-[#EADBCC] text-[#6B5344] rounded-xl text-xs font-semibold hover:bg-[#F3ECE1] transition-colors"
+                className="flex-1 py-2 bg-[#FFFDF9] border border-[#EADBCC] text-[#6B5344] rounded-xl text-xs font-semibold hover:bg-[#F3ECE1] transition-colors cursor-pointer"
               >
                 Retake
               </button>
@@ -846,7 +846,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                 type="button"
                 onClick={() => handleSubmit(photo)}
                 disabled={loading}
-                className="flex-1 py-2 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-xl text-xs font-semibold disabled:opacity-50 transition-colors shadow-xs"
+                className="flex-1 py-2 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-xl text-xs font-semibold disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
               >
                 {loading ? 'Submitting...' : 'Submit Order'}
               </button>
@@ -877,7 +877,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
         <button
           type="button"
           onClick={resetFlow}
-          className="px-6 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-full text-xs font-semibold tracking-wider uppercase shadow-xs active:scale-95 transition-all"
+          className="px-6 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] rounded-full text-xs font-semibold shadow-xs active:scale-95 transition-all cursor-pointer"
         >
           New Order
         </button>

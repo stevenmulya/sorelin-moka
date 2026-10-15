@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Printer, X } from 'lucide-react';
-import { generateTrxCode } from '@/lib/utils';
+import { generateTrxCode, formatRupiah } from '@/lib/utils';
+import { formatWibDateTime } from '@/lib/dates';
 import { useRouter, usePathname } from 'next/navigation';
 
 export interface PrintReceiptItem {
@@ -46,72 +47,92 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
     <>
       <button 
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg font-medium text-sm hover:bg-gray-200 transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs cursor-pointer"
       >
         <Printer className="h-4 w-4" /> Print Receipt
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Printer className="h-4 w-4 text-gray-500" /> Receipt Preview
-              </h3>
-              <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 p-1">
-                <X className="h-5 w-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#28170D]/60 backdrop-blur-xs p-4">
+          <div className="bg-[#FFFDF9] rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[92vh] border border-[#EADBCC]">
+            {/* Header Modal */}
+            <div className="p-4 border-b border-[#EADBCC] flex items-center justify-between bg-[#FAF7F2]">
+              <div className="flex items-center gap-2.5">
+                <Printer className="h-4 w-4 text-[#C69234]" />
+                <div>
+                  <h3 className="font-bold text-[#4A2E1B] text-xs">Blueprint 58mm Thermal Preview</h3>
+                  <p className="text-[10px] text-[#7A6251]">1-Bit Monochrome (Black & White)</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsOpen(false)} 
+                className="text-[#A89687] hover:text-[#4A2E1B] p-1.5 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
               </button>
             </div>
             
             {/* Scrollable Receipt Area */}
-            <div className="p-6 overflow-y-auto bg-gray-200 flex justify-center items-start min-h-0 flex-1">
-              {/* Thermal Receipt Paper Mockup */}
+            <div className="p-4 sm:p-6 overflow-y-auto bg-[#FAF7F2] flex justify-center items-start min-h-0 flex-1">
+              {/* Thermal Receipt Paper Mockup (Strict Black & White) */}
               <div 
                 id="printable-receipt" 
-                className="bg-white w-[58mm] min-h-[100mm] h-max shadow-sm p-4 text-black text-center flex-shrink-0"
+                className="bg-white w-[58mm] min-h-[100mm] h-max shadow-md border border-black p-3.5 text-black text-center flex-shrink-0"
                 style={{ 
                   fontFamily: '"Courier New", Courier, monospace',
-                  fontSize: '12px',
-                  lineHeight: '1.2'
+                  fontSize: '11px',
+                  lineHeight: '1.25',
+                  color: '#000000',
+                  backgroundColor: '#ffffff'
                 }}
               >
-                <div className="font-bold text-lg mb-1">SORELIN MOKA</div>
-                <div className="text-[10px] mb-3 border-b border-dashed border-black pb-2">
-                  Bazaar & Event POS
+                {/* Store Branding */}
+                <div className="font-black text-base tracking-wider mb-0.5 text-black">SORELIN MOKA</div>
+                <div className="text-[10px] font-medium tracking-wide mb-2 text-black">
+                  BAZAAR & EVENT POS
                 </div>
+                <div className="border-b border-dashed border-black mb-2"></div>
 
+                {/* Customer Photo (Strict Monochrome 1-Bit Thermal Simulation) */}
                 {trx.selfieUrl && (
-                  <div className="mb-3">
+                  <div className="mb-2.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
                       src={trx.selfieUrl} 
                       alt="Customer Selfie" 
-                      className="w-full h-auto object-cover border border-black filter grayscale"
+                      className="w-full h-auto object-cover border-2 border-black"
+                      style={{
+                        filter: 'grayscale(100%) contrast(220%) brightness(102%)',
+                        imageRendering: 'pixelated',
+                      }}
                     />
                   </div>
                 )}
 
-                <div className="text-left text-[11px] mb-3">
-                  <div>Date: {new Date(trx.createdAt).toLocaleString('id-ID')}</div>
-                  <div>Trx: {trxCode}</div>
-                  <div>Cust: {trx.customer}</div>
-                  {trx.cashierName && <div>Cashier: {trx.cashierName}</div>}
+                {/* Metadata */}
+                <div className="text-left text-[10px] space-y-0.5 mb-2 text-black font-medium">
+                  <div>DATE: {formatWibDateTime(trx.createdAt)}</div>
+                  <div>TRX: {trxCode}</div>
+                  <div>CUST: {trx.customer || 'GUEST'}</div>
+                  {trx.cashierName && <div>CASHIER: {trx.cashierName}</div>}
                 </div>
 
                 <div className="border-b border-dashed border-black mb-2"></div>
 
-                <table className="w-full text-left text-[11px] mb-2">
+                {/* Items Table */}
+                <table className="w-full text-left text-[10.5px] mb-2 text-black font-medium">
                   <tbody>
                     {trx.items.map((item) => (
-                      <tr key={item.id}>
+                      <tr key={item.id} className="border-b border-dotted border-black/30 last:border-none">
                         <td className="align-top py-1">
-                          <div>{item.productName}</div>
-                          <div className="text-[10px]">
-                            {item.quantity} x {item.price.toLocaleString('id-ID')}
+                          <div className="font-bold">{item.productName}</div>
+                          <div className="text-[9.5px]">
+                            {item.quantity} x {formatRupiah(item.price)}
                           </div>
                         </td>
-                        <td className="align-bottom text-right py-1">
-                          {(item.price * item.quantity).toLocaleString('id-ID')}
+                        <td className="align-bottom text-right py-1 font-bold whitespace-nowrap">
+                          {formatRupiah(item.price * item.quantity)}
                         </td>
                       </tr>
                     ))}
@@ -120,38 +141,54 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
 
                 <div className="border-b border-dashed border-black mb-2"></div>
 
-                <div className="text-right text-[11px] font-bold mb-1">
-                  TOTAL: Rp {trx.amount.toLocaleString('id-ID')}
-                </div>
-                
-                {trx.paidAmount ? (
-                  <>
-                    <div className="text-right text-[11px]">
-                      {trx.paymentMethod || 'PAYMENT'}: Rp {trx.paidAmount.toLocaleString('id-ID')}
-                    </div>
-                    <div className="text-right text-[11px]">
-                      CHANGE: Rp {(trx.paidAmount - trx.amount).toLocaleString('id-ID')}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-right text-[11px]">
-                    STATUS: UNPAID
+                {/* Totals & Payments */}
+                <div className="space-y-1 text-black">
+                  <div className="flex justify-between items-center text-xs font-black">
+                    <span>TOTAL:</span>
+                    <span>{formatRupiah(trx.amount)}</span>
                   </div>
-                )}
+                  
+                  {trx.paidAmount ? (
+                    <>
+                      <div className="flex justify-between items-center text-[10px] font-medium pt-1">
+                        <span>{trx.paymentMethod ? trx.paymentMethod.toUpperCase() : 'PAID'}:</span>
+                        <span>{formatRupiah(trx.paidAmount)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-medium">
+                        <span>CHANGE:</span>
+                        <span>{formatRupiah(trx.paidAmount - trx.amount)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-right text-[10px] font-bold">
+                      STATUS: WAITING FOR PAYMENT
+                    </div>
+                  )}
+                </div>
 
-                <div className="mt-4 pt-2 border-t border-dashed border-black text-[10px]">
-                  Thank you for your purchase!<br />
-                  Please come again.
+                {/* Footer Message */}
+                <div className="mt-4 pt-2 border-t border-dashed border-black text-[9.5px] text-center font-medium leading-tight text-black">
+                  Thank you for your visit!<br />
+                  Follow Instagram: @sorelin.id
                 </div>
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-100 bg-white">
+            {/* Bottom Action Buttons */}
+            <div className="p-3.5 border-t border-[#EADBCC] bg-[#FFFDF9] flex gap-2">
               <button 
-                onClick={handlePrint}
-                className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="w-1/3 py-2.5 bg-[#FAF7F2] border border-[#EADBCC] text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#EADBCC]/30 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                <Printer className="h-4 w-4" /> Print Now
+                Close
+              </button>
+              <button 
+                type="button"
+                onClick={handlePrint}
+                className="w-2/3 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-xs font-bold hover:bg-[#3D2413] transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Printer className="h-4 w-4" /> Print with Blueprint
               </button>
             </div>
           </div>

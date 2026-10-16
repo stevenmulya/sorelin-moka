@@ -3,9 +3,9 @@ import { getSessionRole } from '@/lib/auth';
 import { contentTypeFor, resolveUploadPath } from '@/lib/uploads';
 
 /**
- * Menyajikan file upload hanya untuk pengguna yang sudah login.
- *  - gambar produk : admin atau kiosk
- *  - selfie_*      : khusus admin (data pribadi pelanggan)
+ * Serves uploaded files exclusively to authenticated users:
+ *  - Product images (`prod_*`): admin or kiosk
+ *  - Customer selfies (`selfie_*`): admin only (customer privacy)
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
@@ -25,7 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ nam
       headers: {
         'Content-Type': contentTypeFor(name),
         'Content-Length': String(data.length),
-        // nama file unik (UUID/timestamp) -> aman di-cache lama, tapi hanya di browser (private)
+        // Unique filenames (UUID/timestamp) are safe to cache privately in the browser
         'Cache-Control': 'private, max-age=86400',
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",

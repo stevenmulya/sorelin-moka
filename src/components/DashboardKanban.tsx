@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { ComponentType } from 'react';
 import { updateTransactionStatus, bulkArchiveOrders } from '@/app/actions';
-import { generateTrxCode } from '@/lib/utils';
+import { generateTrxCode, formatRupiah } from '@/lib/utils';
 import { ChefHat, PackageCheck, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export interface KanbanOrderItem {
@@ -18,6 +18,7 @@ export interface KanbanOrder {
   customer: string;
   status: string;
   createdAt: Date | string;
+  selfieUrl?: string | null;
   items?: KanbanOrderItem[];
 }
 
@@ -56,26 +57,26 @@ function KanbanColumn({
 
   return (
     <div
-      className={`bg-[#FAF7F2] rounded-2xl p-4 min-h-[300px] border border-[#EADBCC] transition-colors ${
-        draggedId ? 'border-dashed border-[#C69234]' : ''
+      className={`bg-[#FAF0DA]/50 rounded-2xl p-4 min-h-[300px] border border-[#E5D5BC] transition-colors ${
+        draggedId ? 'border-dashed border-[#C88A32]' : ''
       }`}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, status)}
     >
       <div className="flex items-center gap-2 mb-4 px-1">
         <Icon className={`h-4 w-4 ${colorClass}`} />
-        <h3 className="font-bold text-[#4A2E1B] text-sm">{title}</h3>
+        <h3 className="font-bold text-[#3F2311] text-sm">{title}</h3>
 
         {status === 'Picked Up' && colOrders.length > 0 ? (
           <button
             type="button"
             onClick={onArchiveAll}
-            className="ml-auto bg-[#4A2E1B] text-[#FFFDF9] hover:bg-[#3D2413] transition-colors text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xs"
+            className="ml-auto bg-[#6B4227] text-[#FAF0DA] hover:bg-[#54311B] transition-colors text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xs cursor-pointer"
           >
             Archive All
           </button>
         ) : (
-          <span className="ml-auto bg-[#FFFDF9] border border-[#EADBCC] text-[#7A6251] text-xs font-semibold px-2 py-0.5 rounded-full">
+          <span className="ml-auto bg-[#FFFDF8] border border-[#E5D5BC] text-[#8E6D53] text-xs font-semibold px-2 py-0.5 rounded-full">
             {colOrders.length}
           </span>
         )}
@@ -88,10 +89,10 @@ function KanbanColumn({
             draggable
             onDragStart={(e) => onDragStart(e, order.id)}
             onDragEnd={onDragEnd}
-            className="bg-[#FFFDF9] p-3.5 rounded-xl shadow-xs border border-[#EADBCC] cursor-grab active:cursor-grabbing hover:border-[#D8C6B5] transition-colors group relative"
+            className="bg-[#FFFDF8] p-3.5 rounded-xl shadow-xs border border-[#E5D5BC] cursor-grab active:cursor-grabbing hover:border-[#6B4227] transition-colors group relative"
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-bold text-[#4A2E1B]">
+              <span className="text-xs font-bold text-[#6B4227]">
                 {generateTrxCode(order.id, order.createdAt, order.customer)}
               </span>
               <div className="flex gap-1.5">
@@ -101,7 +102,7 @@ function KanbanColumn({
                     e.stopPropagation();
                     onViewOrder(order);
                   }}
-                  className="px-2 py-0.5 bg-[#FAF7F2] border border-[#EADBCC] text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#F3ECE1] text-[11px] font-semibold rounded-md transition-colors"
+                  className="px-2 py-0.5 bg-[#FAF0DA] border border-[#E5D5BC] text-[#6B4227] hover:text-[#3F2311] hover:bg-[#F2E6CF] text-[11px] font-semibold rounded-md transition-colors cursor-pointer"
                 >
                   View
                 </button>
@@ -112,18 +113,32 @@ function KanbanColumn({
                       e.stopPropagation();
                       onArchiveSingle(order);
                     }}
-                    className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-[11px] font-semibold rounded-md transition-colors"
+                    className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-[11px] font-semibold rounded-md transition-colors cursor-pointer"
                   >
                     Complete
                   </button>
                 )}
               </div>
             </div>
-            <p className="text-sm font-semibold text-[#382213]">{order.customer}</p>
+            <div className="flex items-center gap-2 mt-2">
+              {order.selfieUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={order.selfieUrl}
+                  alt={order.customer}
+                  className="w-6 h-6 rounded-full object-cover border border-[#E5D5BC] flex-shrink-0"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-[#FAF0DA] border border-[#E5D5BC] text-[#6B4227] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                  {(order.customer || 'G').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <p className="text-xs font-semibold text-[#3F2311] truncate">{order.customer}</p>
+            </div>
           </div>
         ))}
         {colOrders.length === 0 && (
-          <div className="text-center p-6 border border-dashed border-[#EADBCC] rounded-xl text-xs text-[#7A6251]">
+          <div className="text-center p-6 border border-dashed border-[#E5D5BC] rounded-xl text-xs text-[#8E6D53]">
             Drag orders here
           </div>
         )}
@@ -178,7 +193,7 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
     const orderToUpdate = orders.find((o) => o.id === idToUpdate);
     if (!orderToUpdate || orderToUpdate.status === newStatus) return;
 
-    const prevOrders = [...orders];
+    const snapshot = [...orders];
     setOrders((prev) => prev.map((o) => (o.id === idToUpdate ? { ...o, status: newStatus } : o)));
 
     const formData = new FormData();
@@ -187,7 +202,7 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
     const res = await updateTransactionStatus(formData);
     if (res?.error) {
       window.alert(res.error);
-      setOrders(prevOrders);
+      setOrders(snapshot);
     }
   };
 
@@ -211,13 +226,13 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
     const ids = pickedUpOrders.map((o) => o.id);
     if (ids.length === 0) return;
 
-    const prevOrders = [...orders];
+    const snapshot = [...orders];
     setOrders((prev) => prev.filter((o) => o.status !== 'Picked Up'));
 
     const res = await bulkArchiveOrders(ids);
     if (res?.error) {
       window.alert(res.error);
-      setOrders(prevOrders);
+      setOrders(snapshot);
     }
   };
 
@@ -301,28 +316,28 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
         />
       </div>
 
-      {/* Modal Konfirmasi */}
+      {/* Confirmation Modal */}
       {modalState.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#28170D]/50 backdrop-blur-xs transition-opacity">
-          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3F2311]/50 backdrop-blur-xs transition-opacity">
+          <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-[#FDF0D0] mb-4">
-                <AlertCircle className="h-6 w-6 text-[#C69234]" />
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-[#F3DBAA] mb-4">
+                <AlertCircle className="h-6 w-6 text-[#6B4227]" />
               </div>
-              <h3 className="text-lg font-bold text-[#4A2E1B] mb-2">{modalState.title}</h3>
-              <p className="text-sm text-[#7A6251] mb-6">{modalState.message}</p>
+              <h3 className="text-lg font-bold text-[#3F2311] mb-2">{modalState.title}</h3>
+              <p className="text-sm text-[#8E6D53] mb-6">{modalState.message}</p>
               <div className="flex items-center gap-3 w-full">
                 <button
                   type="button"
                   onClick={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
-                  className="flex-1 px-4 py-2.5 bg-[#FAF7F2] border border-[#EADBCC] hover:bg-[#F3ECE1] text-[#4A2E1B] text-sm font-semibold rounded-xl transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] hover:bg-[#F2E6CF] text-[#6B4227] text-sm font-semibold rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={modalState.onConfirm}
-                  className="flex-1 px-4 py-2.5 bg-[#4A2E1B] hover:bg-[#3D2413] text-[#FFFDF9] text-sm font-semibold rounded-xl transition-colors shadow-xs"
+                  className="flex-1 px-4 py-2.5 bg-[#6B4227] hover:bg-[#54311B] text-[#FAF0DA] text-sm font-semibold rounded-xl transition-colors shadow-xs cursor-pointer"
                 >
                   Confirm
                 </button>
@@ -334,19 +349,38 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
 
       {/* View Items Modal */}
       {viewItemsModal?.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#28170D]/50 backdrop-blur-xs transition-opacity">
-          <div className="bg-[#FFFDF9] rounded-2xl border border-[#EADBCC] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-[#EADBCC] flex justify-between items-center bg-[#FAF7F2]">
-              <div>
-                <h3 className="font-bold text-[#4A2E1B]">Order Items</h3>
-                <p className="text-xs text-[#7A6251] mt-0.5">
-                  {generateTrxCode(viewItemsModal.order.id, viewItemsModal.order.createdAt, viewItemsModal.order.customer)} - {viewItemsModal.order.customer}
-                </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3F2311]/50 backdrop-blur-xs transition-opacity">
+          <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-[#E5D5BC] flex justify-between items-center bg-[#FAF0DA]/60">
+              <div className="flex items-center gap-3">
+                {viewItemsModal.order.selfieUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={viewItemsModal.order.selfieUrl}
+                    alt={viewItemsModal.order.customer}
+                    className="w-10 h-10 rounded-full object-cover border border-[#E5D5BC] flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#FAF0DA] border border-[#E5D5BC] text-[#6B4227] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                    {(viewItemsModal.order.customer || 'G').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-bold text-[#3F2311]">Order Items</h3>
+                  <p className="text-xs text-[#8E6D53] mt-0.5">
+                    {generateTrxCode(
+                      viewItemsModal.order.id,
+                      viewItemsModal.order.createdAt,
+                      viewItemsModal.order.customer
+                    )}{' '}
+                    • {viewItemsModal.order.customer}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setViewItemsModal(null)}
-                className="text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2] p-1.5 rounded-lg transition-colors"
+                className="text-[#8E6D53] hover:text-[#3F2311] hover:bg-[#FAF0DA] p-1.5 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -355,24 +389,29 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
               {viewItemsModal.order.items && viewItemsModal.order.items.length > 0 ? (
                 <div className="space-y-3">
                   {viewItemsModal.order.items.map((item: KanbanOrderItem) => (
-                    <div key={item.id} className="flex justify-between items-center text-sm border-b border-[#EADBCC]/50 pb-2">
+                    <div
+                      key={item.id}
+                      className="flex justify-between items-center text-sm border-b border-[#E5D5BC]/50 pb-2"
+                    >
                       <div>
-                        <span className="font-bold text-[#4A2E1B]">{item.quantity}x</span>
-                        <span className="ml-2 font-medium text-[#382213]">{item.productName}</span>
+                        <span className="font-bold text-[#6B4227]">{item.quantity}x</span>
+                        <span className="ml-2 font-medium text-[#3F2311]">{item.productName}</span>
                       </div>
-                      <span className="text-[#7A6251] font-semibold text-xs">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                      <span className="text-[#8E6D53] font-semibold text-xs">
+                        {formatRupiah(item.price * item.quantity)}
+                      </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-[#7A6251] text-sm py-4">No items found for this order.</p>
+                <p className="text-center text-[#8E6D53] text-sm py-4">No items found for this order.</p>
               )}
             </div>
-            <div className="p-4 border-t border-[#EADBCC] bg-[#FAF7F2] text-right">
+            <div className="p-4 border-t border-[#E5D5BC] bg-[#FAF0DA]/60 text-right">
               <button
                 type="button"
                 onClick={() => setViewItemsModal(null)}
-                className="px-5 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] text-sm font-semibold rounded-xl hover:bg-[#3D2413] transition-colors shadow-xs"
+                className="px-5 py-2.5 bg-[#6B4227] text-[#FAF0DA] text-sm font-semibold rounded-xl hover:bg-[#54311B] transition-colors shadow-xs cursor-pointer"
               >
                 Close
               </button>

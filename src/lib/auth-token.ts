@@ -1,8 +1,8 @@
 /**
- * Token sesi bertanda tangan (HMAC-SHA256) berbasis Web Crypto.
- * Aman dipakai di proxy.ts maupun di server action / route handler.
+ * Signed session token (HMAC-SHA256) powered by the Web Crypto API.
+ * Safe for use in both proxy.ts and Node.js server actions / route handlers.
  *
- * Format token: base64url(payload).base64url(signature)
+ * Token format: base64url(payload).base64url(signature)
  * payload = JSON { r: role, e: expiryEpochSeconds }
  */
 
@@ -48,7 +48,7 @@ async function hmacKey(secret: string, usage: KeyUsage[]): Promise<CryptoKey> {
 
 export async function createSessionToken(role: Role, maxAgeSeconds: number): Promise<string> {
   const secret = getAuthSecret();
-  if (!secret) throw new Error('AUTH_SECRET belum diset (minimal 32 karakter).');
+  if (!secret) throw new Error('AUTH_SECRET is not configured (minimum 32 characters required).');
 
   const payload = toBase64Url(
     encoder.encode(JSON.stringify({ r: role, e: Math.floor(Date.now() / 1000) + maxAgeSeconds })),
@@ -58,7 +58,7 @@ export async function createSessionToken(role: Role, maxAgeSeconds: number): Pro
   return `${payload}.${toBase64Url(sig)}`;
 }
 
-/** Mengembalikan role jika token valid & belum kedaluwarsa, selain itu null. */
+/** Return the session role if the token is valid and not expired, otherwise null. */
 export async function verifySessionToken(token: string | undefined | null): Promise<Role | null> {
   if (!token) return null;
   const secret = getAuthSecret();
@@ -72,7 +72,7 @@ export async function verifySessionToken(token: string | undefined | null): Prom
   if (!sigBytes) return null;
 
   const key = await hmacKey(secret, ['verify']);
-  // crypto.subtle.verify membandingkan secara constant-time
+  // crypto.subtle.verify performs constant-time comparison
   const ok = await crypto.subtle.verify(
     'HMAC',
     key,

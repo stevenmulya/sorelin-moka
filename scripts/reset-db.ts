@@ -1,59 +1,67 @@
 import { prisma } from '../src/lib/prisma';
+import { UPLOAD_DIR } from '../src/lib/uploads';
 import fs from 'fs';
 import path from 'path';
 
 async function resetAllData() {
-  console.log('🧹 Memulai pembersihan seluruh data transaksi & shift...');
+  if (process.env.CONFIRM_RESET !== 'YES') {
+    console.error(
+      '❌ Safety check failed: Set CONFIRM_RESET=YES to run this destructive reset script.\n' +
+        'Example: CONFIRM_RESET=YES npm run db:reset',
+    );
+    process.exit(1);
+  }
 
-  // 1. Hapus transaksi & relasinya
+  console.log('🧹 Starting full cleanup of transactions, expenses, inventory logs, and shifts...');
+
+  // 1. Delete transactions & related items
   const deletedItems = await prisma.transactionItem.deleteMany({});
-  console.log(`- Terhapus ${deletedItems.count} TransactionItems`);
+  console.log(`- Deleted ${deletedItems.count} TransactionItems`);
 
   const deletedTxs = await prisma.transaction.deleteMany({});
-  console.log(`- Terhapus ${deletedTxs.count} Transactions`);
+  console.log(`- Deleted ${deletedTxs.count} Transactions`);
 
-  // 2. Hapus pengeluaran operasional
+  // 2. Delete operational expenses
   const deletedExpenses = await prisma.expense.deleteMany({});
-  console.log(`- Terhapus ${deletedExpenses.count} Expenses`);
+  console.log(`- Deleted ${deletedExpenses.count} Expenses`);
 
-  // 3. Hapus log inventaris
+  // 3. Delete inventory logs
   const deletedLogs = await prisma.inventoryLog.deleteMany({});
-  console.log(`- Terhapus ${deletedLogs.count} InventoryLogs`);
+  console.log(`- Deleted ${deletedLogs.count} InventoryLogs`);
 
-  // 4. Hapus seluruh riwayat shift
+  // 4. Delete all shift history
   const deletedShifts = await prisma.shift.deleteMany({});
-  console.log(`- Terhapus ${deletedShifts.count} Shifts`);
+  console.log(`- Deleted ${deletedShifts.count} Shifts`);
 
-  // 5. Bersihkan foto selfie di folder uploads (tetap pertahankan gambar produk)
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  if (fs.existsSync(uploadsDir)) {
-    const files = fs.readdirSync(uploadsDir);
+  // 5. Clean up selfie photos in uploads directory (keep product images)
+  if (fs.existsSync(UPLOAD_DIR)) {
+    const files = fs.readdirSync(UPLOAD_DIR);
     let deletedSelfies = 0;
     for (const f of files) {
       if (f.startsWith('selfie_')) {
         try {
-          fs.unlinkSync(path.join(uploadsDir, f));
+          fs.unlinkSync(path.join(UPLOAD_DIR, f));
           deletedSelfies++;
         } catch (e) {
-          console.error(`Gagal menghapus ${f}:`, e);
+          console.error(`Failed to delete ${f}:`, e);
         }
       }
     }
-    console.log(`- Terhapus ${deletedSelfies} file selfie dari folder uploads/`);
+    console.log(`- Deleted ${deletedSelfies} selfie files from uploads/`);
   }
 
-  // 6. Reset stok produk ke stok awal (default 20 tiap item aktif)
+  // 6. Reset product stock to initial default (20 per active item)
   await prisma.product.updateMany({
     data: { stock: 20 },
   });
-  console.log('✅ Stok semua produk telah di-reset ke 20.');
+  console.log('✅ All product stock quantities have been reset to 20.');
 
-  console.log('\n🎉 Database berhasil dibersihkan total dari 0! Siap untuk pengujian awal baru.');
+  console.log('\n🎉 Database reset complete!');
 }
 
 resetAllData()
   .catch((e) => {
-    console.error('❌ Gagal reset database:', e);
+    console.error('❌ Database reset failed:', e);
     process.exit(1);
   })
   .finally(() => process.exit(0));

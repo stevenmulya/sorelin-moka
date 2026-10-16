@@ -1,8 +1,20 @@
+import { cache } from 'react';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { PAID_STATUSES, STATUS } from '@/lib/constants';
 import { UserError, cleanStr, requireInteger } from '@/lib/validation';
+import { formatRupiah } from '@/lib/utils';
 import type { Db } from '@/lib/services/orders';
+
+/**
+ * Request-memoized active shift lookup so layouts and pages share a single query per render pass.
+ */
+export const getActiveShift = cache(async () => {
+  return prisma.shift.findFirst({
+    where: { status: 'Open' },
+    orderBy: { startTime: 'desc' },
+  });
+});
 
 export interface ShiftSummary {
   revenue: number;
@@ -12,13 +24,14 @@ export interface ShiftSummary {
   cogs: number;
   paidOrders: number;
   pendingCount: number;
+  activeKitchenCount: number; // Orders still in Preparing or Ready for Pickup
   expenses: number; // Total operational expenses
   cashExpenses: number; // Expenses paid in Cash from the register
   nonCashExpenses: number; // Expenses paid via Bank Transfer or Owner Funds
 }
 
 /**
- * Single source of truth for shift calculations across all pages.
+ * Single source of truth for shift financial calculations across all pages.
  */
 export async function summarizeShift(db: Db | typeof prisma, shiftId: number): Promise<ShiftSummary> {
   const [trxs, expAll, expCash] = await Promise.all([
@@ -42,6 +55,7 @@ export async function summarizeShift(db: Db | typeof prisma, shiftId: number): P
     cogs: 0,
     paidOrders: 0,
     pendingCount: 0,
+    activeKitchenCount: 0,
     expenses: totalExp,
     cashExpenses: cashExp,
     nonCashExpenses: nonCashExp,
@@ -51,6 +65,9 @@ export async function summarizeShift(db: Db | typeof prisma, shiftId: number): P
     if (t.status === STATUS.WAITING) {
       s.pendingCount++;
       continue;
+    }
+    if (t.status === STATUS.PREPARING || t.status === STATUS.READY) {
+      s.activeKitchenCount++;
     }
     s.paidOrders++;
     s.revenue += t.amount;
@@ -63,7 +80,7 @@ export async function summarizeShift(db: Db | typeof prisma, shiftId: number): P
 }
 
 export function expectedCashOf(initialCash: number, summary: ShiftSummary): number {
-  return Math.max(0, initialCash + summary.cashSales - summary.cashExpenses);
+  return initialCash + summary.cashSales - summary.cashExpenses;
 }
 
 /** Open a shift. Enforces that only one shift can be Open at any time. */
@@ -89,8 +106,9 @@ export async function openShiftService(openedByRaw: string, initialCashRaw: unkn
 /**
  * Close shift atomically:
  *  1) Cancel unpaid waiting orders
- *  2) Lock shift as closed
- *  3) Calculate expected cash from server records
+ *  2) Calculate expected cash from server records
+ *  3) Lock shift as closed with expected and actual cash
+ *  4) Archive active shift orders from the kitchen board
  */
 export async function closeShiftService(shiftId: number, actualCashRaw: unknown, closedByRaw: string) {
   const closedBy = cleanStr(closedByRaw, 60);
@@ -106,34 +124,36 @@ export async function closeShiftService(shiftId: number, actualCashRaw: unknown,
       data: { status: STATUS.CANCELLED, cancelReason: 'Shift closed before payment was completed' },
     });
 
+    const summary = await summarizeShift(tx, shiftId);
+    const expectedCash = expectedCashOf(shift.initialCash, summary);
+
     const lock = await tx.shift.updateMany({
       where: { id: shiftId, status: 'Open' },
-      data: { status: 'Closed', endTime: new Date(), activeKey: null, actualCash, closedBy },
+      data: { status: 'Closed', endTime: new Date(), activeKey: null, actualCash, expectedCash, closedBy },
     });
     if (lock.count === 0) throw new UserError('This shift is already closed.');
 
-    const summary = await summarizeShift(tx, shiftId);
-    const expectedCash = expectedCashOf(shift.initialCash, summary);
-    await tx.shift.update({ where: { id: shiftId }, data: { expectedCash } });
-
-    // Clear kitchen board for next shift (scoped to current shift)
-    await tx.transaction.updateMany({ where: { shiftId, status: STATUS.PICKED_UP }, data: { status: STATUS.CLOSED } });
+    // Clear kitchen board for next shift (archive paid orders belonging to this closed shift)
+    await tx.transaction.updateMany({
+      where: { shiftId, status: { in: [STATUS.PREPARING, STATUS.READY, STATUS.PICKED_UP] } },
+      data: { status: STATUS.CLOSED },
+    });
 
     return { expectedCash, actualCash };
   });
 }
 
 export async function createExpenseService(
-  nameRaw: string, 
+  nameRaw: string,
   amountRaw: unknown,
   paymentMethodRaw?: string
 ) {
   const name = cleanStr(nameRaw, 100);
   if (!name) throw new UserError('Expense name is required.');
   const amount = requireInteger(amountRaw as string | number, 'Expense amount', { min: 1, max: 2_000_000_000 });
-  
-  const paymentMethod = paymentMethodRaw === 'Transfer' || paymentMethodRaw === 'Owner' 
-    ? paymentMethodRaw 
+
+  const paymentMethod = paymentMethodRaw === 'Transfer' || paymentMethodRaw === 'Owner'
+    ? paymentMethodRaw
     : 'Cash';
 
   return prisma.$transaction(async (tx) => {
@@ -146,7 +166,7 @@ export async function createExpenseService(
       const availableCashInDrawer = shift.initialCash + summary.cashSales - summary.cashExpenses;
       if (amount > availableCashInDrawer) {
         throw new UserError(
-          `Cannot withdraw Rp ${amount.toLocaleString('id-ID')} in cash. Cash drawer currently only has Rp ${Math.max(0, availableCashInDrawer).toLocaleString('id-ID')}. Please select 'Bank Transfer' or 'Owner Funds' if paid outside the register.`
+          `Cannot withdraw ${formatRupiah(amount)} in cash. The cash drawer currently has ${formatRupiah(Math.max(0, availableCashInDrawer))}. Please select 'Bank Transfer' or 'Owner Funds' if paid outside the register.`
         );
       }
     }

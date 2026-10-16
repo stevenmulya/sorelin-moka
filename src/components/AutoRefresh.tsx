@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-/** Memuat ulang data server secara berkala (hanya saat tab terlihat) tanpa menghilangkan state klien. */
+/** Periodically refreshes server data while the browser tab is visible without losing client state. */
 export default function AutoRefresh({ seconds = 15 }: { seconds?: number }) {
   const router = useRouter();
 

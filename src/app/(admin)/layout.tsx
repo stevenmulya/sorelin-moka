@@ -1,9 +1,13 @@
-import Link from "next/link";
-import Sidebar from "@/components/Sidebar";
+import Link from 'next/link';
+import Sidebar from '@/components/Sidebar';
 import ShiftTimer from '@/components/ShiftTimer';
-import { prisma } from '@/lib/prisma';
+import { getActiveShift } from '@/lib/services/shifts';
 import { formatRupiah } from '@/lib/utils';
 import { formatWibDate } from '@/lib/dates';
+
+// @next-codemod-ignore Cache Components adoption: this segment temporarily allows blocking.
+// Remove this opt-out after verifying the segment passes validation without it.
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
 export const instant = false;
 
 export default async function AdminLayout({
@@ -11,22 +15,25 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const activeShift = await prisma.shift.findFirst({
-    where: { status: 'Open' }
-  });
+  const activeShift = await getActiveShift();
 
   return (
-    <div className="flex h-screen bg-[#FAF7F2] text-[#382213] font-sans antialiased w-full">
+    <div className="flex h-screen bg-[#FAF0DA] text-[#3F2311] font-sans antialiased w-full">
       <Sidebar />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-[#FFFDF9] border-b border-[#EADBCC]">
+        <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-[#FFFDF8] border-b border-[#E5D5BC]">
           <div className="flex items-center md:hidden">
-            <div className="font-extrabold text-lg text-[#4A2E1B]">
-              Sorelin <span className="text-[#C69234] font-medium">Moka</span>
-            </div>
+            <Link href="/" className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/sorelin-logo-brown.png"
+                alt="Sorelin"
+                className="h-6 w-auto object-contain"
+              />
+            </Link>
           </div>
           <div className="hidden md:block">
             {/* Title / Brand Info */}
@@ -34,11 +41,11 @@ export default async function AdminLayout({
           <div className="flex flex-wrap items-center justify-end gap-4 w-full md:w-auto">
             {!activeShift ? (
               <>
-                <span className="hidden sm:inline-block text-sm font-medium text-[#7A6251]">
+                <span className="hidden sm:inline-block text-sm font-medium text-[#8E6D53]">
                   No active cashier shift
                 </span>
-                <Link 
-                  href="/shift" 
+                <Link
+                  href="/shift"
                   className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-xs border bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-800 animate-pulse"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -47,18 +54,24 @@ export default async function AdminLayout({
               </>
             ) : (
               <>
-                <div className="hidden lg:flex items-center gap-3 text-xs text-[#7A6251] bg-[#FAF7F2] px-3 py-1.5 rounded-lg border border-[#EADBCC]">
+                <div className="hidden lg:flex items-center gap-3 text-xs text-[#8E6D53] bg-[#FAF0DA] px-3 py-1.5 rounded-lg border border-[#E5D5BC]">
                   <span>{formatWibDate(new Date())}</span>
-                  <span className="w-1 h-1 bg-[#D8C6B5] rounded-full"></span>
-                  <span>Cashier: <span className="font-semibold text-[#4A2E1B]">{activeShift.openedBy}</span></span>
-                  <span className="w-1 h-1 bg-[#D8C6B5] rounded-full"></span>
-                  <span>Initial Float: <span className="font-semibold text-[#4A2E1B]">{formatRupiah(activeShift.initialCash)}</span></span>
-                  <span className="w-1 h-1 bg-[#D8C6B5] rounded-full"></span>
-                  <span>Duration: <ShiftTimer startTime={activeShift.startTime} /></span>
+                  <span className="w-1 h-1 bg-[#D5C1A1] rounded-full"></span>
+                  <span>
+                    Cashier: <span className="font-semibold text-[#6B4227]">{activeShift.openedBy}</span>
+                  </span>
+                  <span className="w-1 h-1 bg-[#D5C1A1] rounded-full"></span>
+                  <span>
+                    Initial Float: <span className="font-semibold text-[#6B4227]">{formatRupiah(activeShift.initialCash)}</span>
+                  </span>
+                  <span className="w-1 h-1 bg-[#D5C1A1] rounded-full"></span>
+                  <span>
+                    Duration: <ShiftTimer startTime={activeShift.startTime} />
+                  </span>
                 </div>
-                
-                <Link 
-                  href="/shift" 
+
+                <Link
+                  href="/shift"
                   className="flex items-center gap-2 px-4 py-2 rounded-full transition-colors shadow-xs border bg-red-50 border-red-200 hover:bg-red-100 text-red-800"
                 >
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -70,7 +83,7 @@ export default async function AdminLayout({
         </header>
 
         {/* Main area */}
-        <main className="flex-1 overflow-y-auto bg-[#FAF7F2] p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto bg-[#FAF0DA] p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>

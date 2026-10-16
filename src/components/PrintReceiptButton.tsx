@@ -47,26 +47,26 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
     <>
       <button 
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs cursor-pointer"
+        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#6B4227] text-[#FAF0DA] rounded-xl font-semibold text-sm hover:bg-[#54311B] transition-colors shadow-xs cursor-pointer"
       >
         <Printer className="h-4 w-4" /> Print Receipt
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#28170D]/60 backdrop-blur-xs p-4">
-          <div className="bg-[#FFFDF9] rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[92vh] border border-[#EADBCC]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#3F2311]/60 backdrop-blur-xs p-4">
+          <div className="bg-[#FFFDF8] rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[92vh] border border-[#E5D5BC]">
             {/* Header Modal */}
-            <div className="p-4 border-b border-[#EADBCC] flex items-center justify-between bg-[#FAF7F2]">
+            <div className="p-4 border-b border-[#E5D5BC] flex items-center justify-between bg-[#FAF0DA]/60">
               <div className="flex items-center gap-2.5">
-                <Printer className="h-4 w-4 text-[#C69234]" />
+                <Printer className="h-4 w-4 text-[#C88A32]" />
                 <div>
-                  <h3 className="font-bold text-[#4A2E1B] text-xs">Blueprint 58mm Thermal Preview</h3>
-                  <p className="text-[10px] text-[#7A6251]">1-Bit Monochrome (Black & White)</p>
+                  <h3 className="font-bold text-[#3F2311] text-xs">58mm Thermal Receipt Preview</h3>
+                  <p className="text-[10px] text-[#8E6D53]">1-Bit Monochrome (Black & White)</p>
                 </div>
               </div>
               <button 
                 onClick={() => setIsOpen(false)} 
-                className="text-[#A89687] hover:text-[#4A2E1B] p-1.5 rounded-lg transition-colors cursor-pointer"
+                className="text-[#8E6D53] hover:text-[#3F2311] p-1.5 rounded-lg transition-colors cursor-pointer"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -74,7 +74,7 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
             </div>
             
             {/* Scrollable Receipt Area */}
-            <div className="p-4 sm:p-6 overflow-y-auto bg-[#FAF7F2] flex justify-center items-start min-h-0 flex-1">
+            <div className="p-4 sm:p-6 overflow-y-auto bg-[#FAF0DA]/40 flex justify-center items-start min-h-0 flex-1">
               {/* Thermal Receipt Paper Mockup (Strict Black & White) */}
               <div 
                 id="printable-receipt" 
@@ -88,9 +88,9 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
                 }}
               >
                 {/* Store Branding */}
-                <div className="font-black text-base tracking-wider mb-0.5 text-black">SORELIN MOKA</div>
+                <div className="font-black text-base tracking-wider mb-0.5 text-black">SORELIN BAKERY</div>
                 <div className="text-[10px] font-medium tracking-wide mb-2 text-black">
-                  BAZAAR & EVENT POS
+                  ARTISANAL BAKERY & POS
                 </div>
                 <div className="border-b border-dashed border-black mb-2"></div>
 

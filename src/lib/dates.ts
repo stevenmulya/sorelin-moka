@@ -1,8 +1,8 @@
 import { BUSINESS_UTC_OFFSET_HOURS } from '@/lib/constants';
 
 /**
- * Semua perhitungan "hari" memakai WIB (UTC+7) secara eksplisit lewat aritmetika,
- * bukan zona waktu mesin. Hasilnya sama di laptop WIB, server UTC, maupun browser.
+ * All date and day calculations explicitly use WIB (UTC+7) arithmetic
+ * rather than relying on the host machine timezone.
  */
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
@@ -16,7 +16,7 @@ export function endOfWibDay(date: Date): Date {
   return new Date(startOfWibDay(date).getTime() + DAY - 1);
 }
 
-/** 'YYYY-MM-DD' menurut kalender WIB. */
+/** Format as 'YYYY-MM-DD' in WIB calendar. */
 export function formatWibDate(date: Date): string {
   const d = new Date(date.getTime() + OFFSET);
   const y = d.getUTCFullYear();
@@ -25,7 +25,7 @@ export function formatWibDate(date: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Format jam 'HH:mm' menurut WIB. */
+/** Format time as 'HH:mm' in WIB. */
 export function formatWibTime(date: Date | string): string {
   const d = new Date(new Date(date).getTime() + OFFSET);
   const h = String(d.getUTCHours()).padStart(2, '0');
@@ -33,24 +33,24 @@ export function formatWibTime(date: Date | string): string {
   return `${h}:${min}`;
 }
 
-/** Format tanggal & jam 'YYYY-MM-DD HH:mm WIB' */
+/** Format date & time as 'YYYY-MM-DD HH:mm WIB'. */
 export function formatWibDateTime(date: Date | string): string {
   const d = new Date(date);
   return `${formatWibDate(d)} ${formatWibTime(d)} WIB`;
 }
 
-/** Jam (0-23) menurut WIB. */
+/** Hour of day (0-23) in WIB. */
 export function wibHour(date: Date): number {
   return new Date(date.getTime() + OFFSET).getUTCHours();
 }
 
-/** Parse 'YYYY-MM-DD' menjadi awal hari WIB. null bila tidak valid. */
+/** Parse 'YYYY-MM-DD' into the start of that WIB day, or null if invalid. */
 export function parseWibDate(value: string | undefined | null): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [y, m, d] = value.split('-').map(Number);
   const utc = Date.UTC(y, m - 1, d);
   const check = new Date(utc);
-  // tolak tanggal mustahil seperti 2026-02-31
+  // Reject impossible calendar dates such as 2026-02-31
   if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) return null;
   return new Date(utc - OFFSET);
 }
@@ -63,7 +63,7 @@ export interface ResolvedRange {
   end: Date;
   startStr: string;
   endStr: string;
-  /** null untuk preset "all" */
+  /** null for the "all" preset */
   days: number | null;
 }
 
@@ -74,8 +74,8 @@ export function normalizePreset(value: string | undefined | null): RangePreset {
 }
 
 /**
- * Satu-satunya tempat menerjemahkan filter laporan -> rentang waktu.
- * Dipakai bersama oleh halaman laporan dan endpoint export agar angkanya selalu sama.
+ * Single source of truth for translating report filter parameters into a date range.
+ * Shared by the Business Report page and the Excel export endpoint.
  */
 export function resolveRange(
   params: { preset?: string | null; start?: string | null; end?: string | null },
@@ -101,11 +101,13 @@ export function resolveRange(
       end = new Date(now.getTime() + 365 * DAY);
       break;
     case 'week':
-      start = startOfWibDay(new Date(now.getTime() - 7 * DAY));
+      // 7 inclusive calendar days (today + previous 6 days)
+      start = startOfWibDay(new Date(now.getTime() - 6 * DAY));
       end = endOfWibDay(now);
       break;
     case 'month':
-      start = startOfWibDay(new Date(now.getTime() - 30 * DAY));
+      // 30 inclusive calendar days (today + previous 29 days)
+      start = startOfWibDay(new Date(now.getTime() - 29 * DAY));
       end = endOfWibDay(now);
       break;
     case 'custom': {
@@ -121,7 +123,7 @@ export function resolveRange(
       end = endOfWibDay(now);
   }
 
-  // Jika terbalik, tukar (hanya relevan untuk custom)
+  // Swap if custom start is after end
   if (start > end) {
     const s = startOfWibDay(end);
     const e = endOfWibDay(start);

@@ -7,8 +7,12 @@ import StatusBadge from '@/components/StatusBadge';
 import { generateTrxCode, formatRupiah } from '@/lib/utils';
 import { parsePage } from '@/lib/validation';
 import { endOfWibDay, parseWibDate, startOfWibDay } from '@/lib/dates';
+import { getActiveShift } from '@/lib/services/shifts';
 import Link from 'next/link';
 
+// @next-codemod-ignore Cache Components adoption: this segment temporarily allows blocking.
+// Remove this opt-out after verifying the segment passes validation without it.
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
 export const instant = false;
 
 export default async function TransactionsPage({
@@ -30,7 +34,7 @@ export default async function TransactionsPage({
   const where: Prisma.TransactionWhereInput = {};
 
   if (view === 'shift') {
-    const activeShift = await prisma.shift.findFirst({ where: { status: 'Open' }, orderBy: { startTime: 'desc' } });
+    const activeShift = await getActiveShift();
     where.shiftId = activeShift ? activeShift.id : -1;
   }
 
@@ -71,20 +75,24 @@ export default async function TransactionsPage({
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#4A2E1B] tracking-tight">Order History</h1>
-        <p className="text-sm text-[#7A6251] mt-1">Review all completed sales, payment statuses, and print receipts.</p>
+        <h1 className="text-2xl font-bold text-[#6B4227] tracking-tight">Order History</h1>
+        <p className="text-sm text-[#8E6D53] mt-1">Review all completed sales, payment statuses, and print receipts.</p>
       </div>
 
-      <div className="bg-[#FFFDF9] border border-[#EADBCC] rounded-2xl overflow-hidden shadow-xs">
-        <form method="GET" action="/transactions" className="p-4 border-b border-[#EADBCC] flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#FAF7F2]">
+      <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl overflow-hidden shadow-xs">
+        <form
+          method="GET"
+          action="/transactions"
+          className="p-4 border-b border-[#E5D5BC] flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#FAF0DA]/60"
+        >
           <div className="flex items-center gap-3 w-full sm:w-auto flex-1 flex-wrap">
-            <div className="flex bg-[#FFFDF9] rounded-xl border border-[#EADBCC] p-0.5">
+            <div className="flex bg-[#FFFDF8] rounded-xl border border-[#E5D5BC] p-0.5">
               <button
                 type="submit"
                 name="view"
                 value="shift"
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  view === 'shift' ? 'bg-[#4A2E1B] text-[#FFFDF9]' : 'text-[#7A6251] hover:text-[#4A2E1B]'
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  view === 'shift' ? 'bg-[#6B4227] text-[#FAF0DA]' : 'text-[#8E6D53] hover:text-[#6B4227]'
                 }`}
               >
                 This Shift
@@ -93,22 +101,22 @@ export default async function TransactionsPage({
                 type="submit"
                 name="view"
                 value="all"
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  view === 'all' ? 'bg-[#4A2E1B] text-[#FFFDF9]' : 'text-[#7A6251] hover:text-[#4A2E1B]'
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  view === 'all' ? 'bg-[#6B4227] text-[#FAF0DA]' : 'text-[#8E6D53] hover:text-[#6B4227]'
                 }`}
               >
-                See All
+                View All
               </button>
             </div>
 
             <div className="relative w-full sm:w-52">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A69383]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9E826B]" />
               <input
                 type="text"
                 name="q"
                 defaultValue={q}
                 placeholder="Search transactions..."
-                className="w-full pl-9 pr-4 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] placeholder-[#A69383] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] transition-all"
+                className="w-full pl-9 pr-4 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] transition-all"
               />
             </div>
 
@@ -117,7 +125,7 @@ export default async function TransactionsPage({
                 type="date"
                 name="date"
                 defaultValue={dateStr}
-                className="w-full sm:w-auto px-3 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm text-[#382213] focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] transition-all cursor-pointer min-w-[140px]"
+                className="w-full sm:w-auto px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] transition-all cursor-pointer min-w-[140px]"
               />
             )}
 
@@ -125,23 +133,23 @@ export default async function TransactionsPage({
               <select
                 name="sort"
                 defaultValue={sort}
-                className="w-full sm:w-auto appearance-none pl-9 pr-8 py-2 bg-[#FFFDF9] border border-[#EADBCC] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2E1B] text-[#382213] font-medium cursor-pointer"
+                className="w-full sm:w-auto appearance-none pl-9 pr-8 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] text-[#3F2311] font-medium cursor-pointer"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
               </select>
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7A6251]" />
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8E6D53]" />
             </div>
             <button
               type="submit"
-              className="w-full sm:w-auto px-4 py-2 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-sm font-semibold hover:bg-[#3D2413] transition-colors shadow-xs cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 bg-[#6B4227] text-[#FAF0DA] rounded-xl text-sm font-semibold hover:bg-[#54311B] transition-colors shadow-xs cursor-pointer"
             >
               Apply
             </button>
             {(q || dateStr || view === 'all') && (
               <Link
                 href="/transactions"
-                className="w-full sm:w-auto text-center px-4 py-2 bg-[#FFFDF9] text-[#7A6251] border border-[#EADBCC] rounded-xl text-sm font-semibold hover:bg-[#FAF7F2] hover:text-[#4A2E1B] transition-colors cursor-pointer"
+                className="w-full sm:w-auto text-center px-4 py-2 bg-[#FFFDF8] text-[#8E6D53] border border-[#E5D5BC] rounded-xl text-sm font-semibold hover:bg-[#FAF0DA] hover:text-[#6B4227] transition-colors cursor-pointer"
               >
                 Clear
               </Link>
@@ -150,7 +158,7 @@ export default async function TransactionsPage({
 
           <Link
             href="/transactions/new"
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl font-semibold text-sm hover:bg-[#3D2413] transition-colors shadow-xs whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-[#6B4227] text-[#FAF0DA] rounded-xl font-semibold text-sm hover:bg-[#54311B] transition-colors shadow-xs whitespace-nowrap cursor-pointer"
           >
             New Order
           </Link>
@@ -158,7 +166,7 @@ export default async function TransactionsPage({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#FAF7F2] text-[#7A6251] font-semibold text-xs border-b border-[#EADBCC]">
+            <thead className="bg-[#FAF0DA] text-[#8E6D53] font-semibold text-xs border-b border-[#E5D5BC]">
               <tr>
                 <th className="px-5 py-3.5">Transaction ID</th>
                 <th className="px-5 py-3.5">Customer</th>
@@ -167,17 +175,31 @@ export default async function TransactionsPage({
                 <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EADBCC]/60">
+            <tbody className="divide-y divide-[#E5D5BC]/60">
               {transactions.length > 0 ? (
                 transactions.map((trx) => (
-                  <tr key={trx.id} className="hover:bg-[#FAF7F2] transition-colors">
-                    <td className="px-5 py-3.5 font-bold text-xs text-[#4A2E1B]">
+                  <tr key={trx.id} className="hover:bg-[#FAF0DA]/60 transition-colors">
+                    <td className="px-5 py-3.5 font-bold text-xs text-[#6B4227]">
                       {generateTrxCode(trx.id, trx.createdAt, trx.customer)}
                     </td>
-                    <td className="px-5 py-3.5 font-medium text-[#382213]">{trx.customer}</td>
-                    <td className="px-5 py-3.5 font-bold text-[#4A2E1B]">
-                      {formatRupiah(trx.amount)}
+                    <td className="px-5 py-3.5 font-medium text-[#3F2311]">
+                      <div className="flex items-center gap-2.5">
+                        {trx.selfieUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={trx.selfieUrl}
+                            alt={trx.customer}
+                            className="w-7 h-7 rounded-full object-cover border border-[#E5D5BC] flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-[#FAF0DA] border border-[#E5D5BC] text-[#6B4227] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                            {(trx.customer || 'G').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="truncate">{trx.customer}</span>
+                      </div>
                     </td>
+                    <td className="px-5 py-3.5 font-bold text-[#6B4227]">{formatRupiah(trx.amount)}</td>
                     <td className="px-5 py-3.5">
                       <StatusBadge status={trx.status} />
                     </td>
@@ -190,9 +212,9 @@ export default async function TransactionsPage({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-[#7A6251]">
+                  <td colSpan={5} className="px-6 py-12 text-center text-[#8E6D53]">
                     {view === 'shift' && where.shiftId === -1
-                      ? "No active shift currently running. Open a shift first, or select 'See All' to view history."
+                      ? "No active shift is currently running. Open a shift first, or select 'View All' to view history."
                       : 'No transactions found.'}
                   </td>
                 </tr>

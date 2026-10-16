@@ -1,25 +1,25 @@
 {
-  "name": "Sorelin Moka POS",
+  "name": "Sorelin Bakery POS",
   "short_name": "Sorelin POS",
-  "description": "Modern Point of Sale & Kiosk System",
+  "description": "Point of Sale & Self-Order Kiosk System",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAF7F2",
-  "theme_color": "#4A2E1B",
+  "background_color": "#FAF0DA",
+  "theme_color": "#6B4227",
   "orientation": "any",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/icons/maskable-512.png",
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

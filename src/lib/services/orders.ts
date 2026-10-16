@@ -2,7 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { KANBAN_STATUSES, PAID_STATUSES, PAYMENT_METHODS, STATUS, type PaymentMethod } from '@/lib/constants';
 import { UserError, cleanStr, isEmail, parseInteger, requireInteger } from '@/lib/validation';
-import { effectivePrice } from '@/lib/utils';
+import { effectivePrice, formatRupiah } from '@/lib/utils';
+import { summarizeShift } from '@/lib/services/shifts';
 
 export type Db = Prisma.TransactionClient;
 
@@ -18,22 +19,23 @@ const MAX_LINES = 100;
 const MAX_QTY = 999;
 
 /**
- * Membangun item pesanan dari input klien. Klien hanya dipercaya untuk productId & quantity;
- * nama, harga (termasuk diskon), HPP, dan total SELALU diambil dari database.
+ * Build validated order line items from client input. Only productId and quantity
+ * are accepted from the client; product name, effective price, cost price, and totals
+ * are always resolved directly from the database.
  */
 export async function buildOrder(
   rawItems: unknown,
   db: Db | typeof prisma = prisma,
 ): Promise<{ lines: OrderLine[]; total: number }> {
-  if (!Array.isArray(rawItems) || rawItems.length === 0) throw new UserError('Keranjang masih kosong.');
-  if (rawItems.length > MAX_LINES) throw new UserError('Terlalu banyak item dalam satu pesanan.');
+  if (!Array.isArray(rawItems) || rawItems.length === 0) throw new UserError('Cart is empty.');
+  if (rawItems.length > MAX_LINES) throw new UserError('Too many items in a single order.');
 
   const wanted = new Map<number, number>();
   for (const raw of rawItems) {
     const r = (raw ?? {}) as { productId?: unknown; quantity?: unknown };
     const productId = parseInteger(r.productId as number | string, { min: 1 });
     const quantity = parseInteger(r.quantity as number | string, { min: 1, max: MAX_QTY });
-    if (productId === null || quantity === null) throw new UserError('Data item pesanan tidak valid.');
+    if (productId === null || quantity === null) throw new UserError('Invalid order item data.');
     wanted.set(productId, (wanted.get(productId) ?? 0) + quantity);
   }
 
@@ -74,7 +76,7 @@ export interface CreateOrderInput {
   selfieUrl?: string | null;
 }
 
-/** Membuat pesanan "Waiting Payment" pada shift yang sedang terbuka. */
+/** Create a "Waiting Payment" order in the currently open shift. */
 export async function createOrder(input: CreateOrderInput) {
   const customer = cleanStr(input.customer, 60);
   if (!customer) throw new UserError('Customer name is required.');
@@ -87,7 +89,7 @@ export async function createOrder(input: CreateOrderInput) {
 
   return prisma.$transaction(async (tx) => {
     const shift = await getOpenShift(tx);
-    if (!shift) throw new UserError('Store is closed (no active cashier shift opened).');
+    if (!shift) throw new UserError('Store is currently closed (no active cashier shift).');
 
     const { lines, total } = await buildOrder(input.items, tx);
 
@@ -110,7 +112,7 @@ function resolvePayment(method: string, paidRaw: unknown, amount: number): { met
   if (!(PAYMENT_METHODS as readonly string[]).includes(method)) throw new UserError('Invalid payment method.');
   const m = method as PaymentMethod;
   if (m !== 'Cash') {
-    // Non-tunai selalu pas sesuai total (tidak ada kembalian)
+    // Non-cash payments always match the exact order amount
     return { method: m, paid: amount };
   }
   const paid = requireInteger(paidRaw as string | number, 'Payment amount', { min: amount, max: 2_000_000_000 });
@@ -125,8 +127,8 @@ export interface ApproveInput {
 }
 
 /**
- * Menyetujui pembayaran. Seluruh langkah (kunci status, potong stok, catat log) berada dalam
- * SATU transaksi database: jika salah satu gagal (mis. stok tidak cukup), semuanya dibatalkan.
+ * Approve payment atomically: lock status, deduct stock, and record inventory logs
+ * within a single database transaction.
  */
 export async function approvePaymentService(input: ApproveInput) {
   const cashierName = cleanStr(input.cashierName, 60);
@@ -143,7 +145,7 @@ export async function approvePaymentService(input: ApproveInput) {
 
     const { method, paid } = resolvePayment(input.paymentMethod, input.paidAmount, trx.amount);
 
-    // Kunci atomik: hanya satu request yang berhasil mengubah Waiting Payment -> Preparing
+    // Atomic lock: only one request can transition Waiting Payment -> Preparing
     const lock = await tx.transaction.updateMany({
       where: { id: trx.id, status: STATUS.WAITING },
       data: {
@@ -156,12 +158,16 @@ export async function approvePaymentService(input: ApproveInput) {
     });
     if (lock.count === 0) throw new UserError('This transaction has already been processed.');
 
-    for (const item of trx.items) {
-      if (!item.productId) continue;
-      const exists = await tx.product.findUnique({ where: { id: item.productId }, select: { id: true } });
-      if (!exists) continue; // data lama: produk sudah dihapus permanen
+    const productIds = trx.items.map((i) => i.productId).filter((id): id is number => id !== null);
+    const existingProducts = productIds.length > 0
+      ? await tx.product.findMany({ where: { id: { in: productIds } }, select: { id: true } })
+      : [];
+    const existingSet = new Set(existingProducts.map((p) => p.id));
 
-      // Potong stok hanya jika cukup (guard di level SQL, tidak bisa minus)
+    for (const item of trx.items) {
+      if (!item.productId || !existingSet.has(item.productId)) continue;
+
+      // Deduct stock only if sufficient (SQL-level guard prevents negative stock)
       const dec = await tx.product.updateMany({
         where: { id: item.productId, stock: { gte: item.quantity } },
         data: { stock: { decrement: item.quantity } },
@@ -190,11 +196,11 @@ export interface CancelInput {
 }
 
 /**
- * Membatalkan pesanan secara atomik.
- *  - Waiting Payment            : tidak ada stok yang perlu dikembalikan
- *  - Preparing / Ready          : stok dikembalikan
- *  - Picked Up / Closed         : dibatalkan (refund) tanpa mengembalikan stok (barang sudah diterima)
- * Pesanan dari shift yang sudah ditutup tidak boleh dibatalkan (menjaga rekonsiliasi kas).
+ * Cancel an order atomically:
+ *  - Waiting Payment            : no stock to restore
+ *  - Preparing / Ready          : stock is restored to inventory
+ *  - Picked Up / Closed         : refunded/cancelled without restoring stock
+ * Orders from closed shifts cannot be cancelled to preserve shift cash reconciliation.
  */
 export async function cancelOrderService(input: CancelInput) {
   const reason = cleanStr(input.reason, 200);
@@ -210,6 +216,16 @@ export async function cancelOrderService(input: CancelInput) {
       if (!shift || shift.status !== 'Open') {
         throw new UserError('Transactions from closed shifts cannot be cancelled.');
       }
+
+      if (trx.paymentMethod === 'Cash') {
+        const summary = await summarizeShift(tx, shift.id);
+        const availableCash = shift.initialCash + summary.cashSales - summary.cashExpenses;
+        if (trx.amount > availableCash) {
+          throw new UserError(
+            `Cannot refund ${formatRupiah(trx.amount)} in cash because cash expenses have already reduced the drawer balance to ${formatRupiah(Math.max(0, availableCash))}.`
+          );
+        }
+      }
     }
 
     const lock = await tx.transaction.updateMany({
@@ -219,10 +235,14 @@ export async function cancelOrderService(input: CancelInput) {
     if (lock.count === 0) throw new UserError('Transaction status has changed. Please refresh the page.');
 
     if (trx.status === STATUS.PREPARING || trx.status === STATUS.READY) {
+      const productIds = trx.items.map((i) => i.productId).filter((id): id is number => id !== null);
+      const existingProducts = productIds.length > 0
+        ? await tx.product.findMany({ where: { id: { in: productIds } }, select: { id: true } })
+        : [];
+      const existingSet = new Set(existingProducts.map((p) => p.id));
+
       for (const item of trx.items) {
-        if (!item.productId) continue;
-        const exists = await tx.product.findUnique({ where: { id: item.productId }, select: { id: true } });
-        if (!exists) continue;
+        if (!item.productId || !existingSet.has(item.productId)) continue;
         await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
         await tx.inventoryLog.create({
           data: {
@@ -246,7 +266,7 @@ export interface EditPaymentInput {
   paidAmount: unknown;
 }
 
-/** Mengubah metode/nominal bayar. Hanya untuk pesanan terbayar pada shift yang masih terbuka. */
+/** Modify payment method or paid amount for a paid order in the currently open shift. */
 export async function editPaymentService(input: EditPaymentInput) {
   return prisma.$transaction(async (tx) => {
     const shift = await getOpenShift(tx);
@@ -257,12 +277,23 @@ export async function editPaymentService(input: EditPaymentInput) {
       throw new UserError('Payments from closed shifts cannot be modified.');
     }
     const { method, paid } = resolvePayment(input.paymentMethod, input.paidAmount, trx.amount);
+
+    if (trx.paymentMethod === 'Cash' && method !== 'Cash') {
+      const summary = await summarizeShift(tx, shift.id);
+      const availableCash = shift.initialCash + summary.cashSales - summary.cashExpenses;
+      if (trx.amount > availableCash) {
+        throw new UserError(
+          `Cannot change payment method from Cash because cash expenses have already reduced the drawer balance to ${formatRupiah(Math.max(0, availableCash))}.`
+        );
+      }
+    }
+
     await tx.transaction.update({ where: { id: trx.id }, data: { paymentMethod: method, paidAmount: paid } });
     return { id: trx.id };
   });
 }
 
-/** Perpindahan status yang sah di papan dapur. Pembatalan TIDAK boleh lewat sini. */
+/** Valid status transitions on the kitchen Kanban board. Cancellations must use cancelOrderService. */
 export function isAllowedTransition(from: string, to: string): boolean {
   if (from === to) return false;
   if (KANBAN_STATUSES.includes(from) && KANBAN_STATUSES.includes(to)) return true;
@@ -294,7 +325,7 @@ export async function changeStatusService(transactionId: number, to: string) {
   });
 }
 
-/** Arsipkan (Picked Up -> Closed). Hanya pesanan yang benar-benar Picked Up yang terpengaruh. */
+/** Archive Picked Up orders to Closed status. */
 export async function archivePickedUpService(ids: unknown) {
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500) return { count: 0 };
   const clean = ids.map((i) => parseInteger(i as number | string, { min: 1 })).filter((i): i is number => i !== null);

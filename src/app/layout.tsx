@@ -1,9 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+// @next-codemod-ignore Cache Components adoption: this segment temporarily allows blocking.
+// Remove this opt-out after verifying the segment passes validation without it.
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
+export const instant = false;
+
 export const metadata: Metadata = {
-  title: "Sorelin Moka POS",
-  description: "Modern Point of Sale & Kiosk System",
+  title: "Sorelin Bakery POS",
+  description: "Point of Sale & Self-Order Kiosk System",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -12,24 +17,22 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
     apple: [
-      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
     ],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4A2E1B",
+  themeColor: "#6B4227",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
 };
-
-export const instant = false;
 
 export default function RootLayout({
   children,
@@ -37,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
-      <body className="bg-gray-50 text-gray-900 font-sans antialiased min-h-screen">
+    <html lang="en">
+      <body className="bg-[#FAF0DA] text-[#6B4227] font-sans antialiased min-h-screen">
         {children}
       </body>
     </html>

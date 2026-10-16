@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { authenticate, destroySession, requireAdmin, requireAnyRole } from '@/lib/auth'
 import { STATUS } from '@/lib/constants'
+import { generateTrxCode } from '@/lib/utils'
 import { UserError, cleanStr, parseInteger, requireInteger, toUserMessage } from '@/lib/validation'
 import {
   MAX_PRODUCT_IMAGES_PER_REQUEST,
@@ -37,12 +38,9 @@ import {
 } from '@/lib/services/products'
 
 /**
- * Catatan keamanan: setiap action ADMIN memanggil requireAdmin() di baris pertama.
- * Proxy hanyalah lapisan pertama; action tetap harus memeriksa sendiri karena
- * dapat dipanggil lewat POST langsung.
- *
- * Konvensi hasil: { error?: string }. Error validasi/bisnis dikembalikan sebagai pesan
- * (bukan dilempar) agar bisa ditampilkan ke kasir.
+ * Security note: every admin action invokes requireAdmin() on its first line.
+ * Convention: { error?: string }. Business and validation errors are returned as
+ * user-safe messages rather than thrown so they can be rendered inline.
  */
 export type ActionResult = { error?: string } | void
 
@@ -50,7 +48,7 @@ function fail(e: unknown): { error: string } {
   return { error: toUserMessage(e) }
 }
 
-// ============================ TRANSAKSI ============================
+// ============================ TRANSACTIONS ============================
 
 export async function createTransaction(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
@@ -98,7 +96,9 @@ export async function approvePayment(formData: FormData): Promise<ActionResult> 
   revalidatePath('/transactions')
   revalidatePath(`/transactions/${id}`)
   revalidatePath('/inventory')
+  revalidatePath('/products')
   revalidatePath('/shift')
+  revalidatePath('/kiosk')
   revalidatePath('/')
   redirect(`/transactions/${id}?print=true`)
 }
@@ -115,8 +115,10 @@ export async function cancelTransaction(formData: FormData): Promise<ActionResul
 
   revalidatePath('/transactions')
   revalidatePath('/inventory')
+  revalidatePath('/products')
   revalidatePath('/shift')
   revalidatePath('/orders')
+  revalidatePath('/kiosk')
   revalidatePath('/')
   redirect('/transactions')
 }
@@ -164,10 +166,11 @@ export async function bulkArchiveOrders(ids: number[]): Promise<ActionResult> {
   } catch (e) {
     return fail(e)
   }
+  revalidatePath('/orders')
   revalidatePath('/')
 }
 
-// ============================ PRODUK ============================
+// ============================ PRODUCTS ============================
 
 function collectImageFiles(formData: FormData): File[] {
   const files = formData.getAll('images').filter((f): f is File => f instanceof File && f.size > 0)
@@ -182,7 +185,7 @@ async function saveAll(files: File[]): Promise<string[]> {
   try {
     for (const f of files) urls.push(await saveProductImage(f))
   } catch (e) {
-    for (const u of urls) await deleteUpload(u) // jangan tinggalkan file yatim
+    for (const u of urls) await deleteUpload(u)
     throw e
   }
   return urls
@@ -192,7 +195,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
 
   try {
-    const input = parseProductForm(formData) // validasi dulu sebelum menulis file apa pun
+    const input = parseProductForm(formData)
     const urls = await saveAll(collectImageFiles(formData))
     try {
       await createProductService(input, urls)
@@ -205,6 +208,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath('/products')
+  revalidatePath('/inventory')
   revalidatePath('/kiosk')
   redirect('/products')
 }
@@ -227,6 +231,7 @@ export async function updateProduct(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath('/products')
+  revalidatePath('/inventory')
   revalidatePath('/kiosk')
   redirect('/products')
 }
@@ -249,7 +254,7 @@ export async function deleteProductImage(formData: FormData): Promise<ActionResu
   revalidatePath('/kiosk')
 }
 
-/** "Hapus" produk = arsipkan (riwayat stok & penjualan tidak hilang). */
+/** Archive product so historical stock logs and sales records remain intact. */
 export async function deleteProduct(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   try {
@@ -267,7 +272,7 @@ export async function deleteProduct(formData: FormData): Promise<ActionResult> {
 export async function toggleBestSeller(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   const id = parseInteger(formData.get('id') as string, { min: 1 })
-  if (id === null) return { error: 'ID produk tidak valid.' }
+  if (id === null) return { error: 'Invalid product ID.' }
   const current = formData.get('current') === 'true'
   await prisma.product.updateMany({ where: { id, isActive: true }, data: { isBestSeller: !current } })
   revalidatePath('/products')
@@ -277,14 +282,14 @@ export async function toggleBestSeller(formData: FormData): Promise<ActionResult
 export async function toggleFavorite(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   const id = parseInteger(formData.get('id') as string, { min: 1 })
-  if (id === null) return { error: 'ID produk tidak valid.' }
+  if (id === null) return { error: 'Invalid product ID.' }
   const current = formData.get('current') === 'true'
   await prisma.product.updateMany({ where: { id, isActive: true }, data: { isFavorite: !current } })
   revalidatePath('/products')
   revalidatePath('/kiosk')
 }
 
-/** Menerima urutan id produk di halaman aktif (atas ke bawah). */
+/** Save product display priority order for the active page. */
 export async function updatePriorities(orderedIds: number[]): Promise<ActionResult> {
   await requireAdmin()
   try {
@@ -296,7 +301,7 @@ export async function updatePriorities(orderedIds: number[]): Promise<ActionResu
   revalidatePath('/kiosk')
 }
 
-// ============================ STOK ============================
+// ============================ STOCK ============================
 
 export async function adjustStock(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
@@ -318,7 +323,7 @@ export async function adjustStock(formData: FormData): Promise<ActionResult> {
   revalidatePath('/')
 }
 
-// ============================ PENGELUARAN ============================
+// ============================ EXPENSES ============================
 
 export async function createExpense(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
@@ -350,7 +355,7 @@ export async function deleteExpense(formData: FormData): Promise<ActionResult> {
   revalidatePath('/')
 }
 
-// ============================ SHIFT ============================
+// ============================ SHIFTS ============================
 
 export async function openShift(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
@@ -361,6 +366,7 @@ export async function openShift(formData: FormData): Promise<ActionResult> {
   }
   revalidatePath('/shift')
   revalidatePath('/shifts')
+  revalidatePath('/kiosk')
   revalidatePath('/')
   redirect('/')
 }
@@ -405,12 +411,12 @@ export async function submitKioskOrder(data: {
   customerEmail: string
   items: { productId: number; quantity: number }[]
   photoBase64: string
-}): Promise<{ success: true; transactionId: number } | { success: false; error: string }> {
+}): Promise<{ success: true; transactionId: number; transactionCode: string } | { success: false; error: string }> {
   await requireAnyRole()
 
   let selfieUrl: string | null = null
   try {
-    // Perlindungan banjir pesanan dari kiosk
+    // Rate-limit open waiting orders from the kiosk
     const waiting = await prisma.transaction.count({ where: { status: STATUS.WAITING, shift: { status: 'Open' } } })
     if (waiting >= MAX_WAITING_ORDERS) throw new UserError('Order queue is currently full. Please contact the cashier.')
 
@@ -424,10 +430,15 @@ export async function submitKioskOrder(data: {
         selfieUrl,
       })
       revalidatePath('/transactions')
+      revalidatePath('/kiosk')
       revalidatePath('/')
-      return { success: true, transactionId: trx.id }
+      return {
+        success: true,
+        transactionId: trx.id,
+        transactionCode: generateTrxCode(trx.id, trx.createdAt, trx.customer),
+      }
     } catch (e) {
-      await deleteUpload(selfieUrl) // pesanan gagal -> jangan tinggalkan foto yatim
+      await deleteUpload(selfieUrl)
       throw e
     }
   } catch (e) {

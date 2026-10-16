@@ -1,4 +1,4 @@
-/** Error yang pesannya aman ditampilkan ke pengguna. */
+/** Error whose message is safe to display directly to the end user. */
 export class UserError extends Error {
   constructor(message: string) {
     super(message);
@@ -6,19 +6,19 @@ export class UserError extends Error {
   }
 }
 
-/** Ambil string dari FormData, dipangkas, dengan batas panjang. */
+/** Extract and normalize a single-line string from FormData with a maximum length. */
 export function cleanStr(value: FormDataEntryValue | string | null | undefined, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.trim().replace(/\s+/g, ' ').slice(0, maxLen);
 }
 
-/** Teks bebas multi-baris (deskripsi): hanya trim + batasi panjang. */
+/** Extract and trim a multi-line text field (e.g. description) with a maximum length. */
 export function cleanText(value: FormDataEntryValue | string | null | undefined, maxLen = 1000): string {
   if (typeof value !== 'string') return '';
   return value.trim().slice(0, maxLen);
 }
 
-/** Parse bilangan bulat ketat. Mengembalikan null jika bukan integer valid / di luar rentang. */
+/** Strict integer parser. Returns null if not a valid safe integer within bounds. */
 export function parseInteger(
   value: FormDataEntryValue | string | number | null | undefined,
   opts: { min?: number; max?: number } = {},
@@ -32,7 +32,7 @@ export function parseInteger(
   return n;
 }
 
-/** Versi yang melempar UserError bila tidak valid. */
+/** Parse an integer or throw a UserError with a clear validation message. */
 export function requireInteger(
   value: FormDataEntryValue | string | number | null | undefined,
   label: string,
@@ -51,7 +51,7 @@ export function requireInteger(
   return n;
 }
 
-/** Nomor halaman dari query string; selalu >= 1. */
+/** Parse a 1-indexed page number from query parameters. */
 export function parsePage(value: string | string[] | undefined): number {
   const n = parseInteger(typeof value === 'string' ? value : undefined, { min: 1, max: 100000 });
   return n ?? 1;
@@ -62,7 +62,7 @@ export function isEmail(value: string): boolean {
   return value.length <= 120 && EMAIL_RE.test(value);
 }
 
-/** Ambil pesan yang aman ditampilkan; error tak dikenal disamarkan. */
+/** Return a user-safe error message while masking unexpected internal exceptions. */
 export function toUserMessage(e: unknown): string {
   if (e instanceof UserError) return e.message;
   console.error('[action error]', e);

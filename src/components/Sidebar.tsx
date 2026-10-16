@@ -2,23 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { 
-  LayoutDashboard, 
-  Package, 
-  History, 
-  ClipboardList, 
-  Users, 
-  Wallet, 
-  LogOut, 
-  BarChart3, 
-  Menu, 
-  X, 
-  ChefHat, 
-  Clock, 
-  Receipt, 
+import {
+  LayoutDashboard,
+  Package,
+  History,
+  ClipboardList,
+  Users,
+  Wallet,
+  LogOut,
+  BarChart3,
+  Menu,
+  X,
+  ChefHat,
+  Clock,
+  Receipt,
   ChevronDown,
   ShoppingBag,
-  PlusCircle
+  PlusCircle,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/actions";
@@ -75,7 +75,6 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Clean, consistent, and intuitive domain groupings (Title Case)
   const groups: MenuGroup[] = [
     {
       id: 'orders',
@@ -117,7 +116,6 @@ export default function Sidebar() {
     },
   ];
 
-  // All groups open by default for rapid one-click cashier access
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     orders: true,
     shifts: true,
@@ -137,9 +135,9 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile Drawer Hamburger Button */}
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
-        className="md:hidden fixed top-3 left-4 z-50 p-2 bg-[#FFFDF9] rounded-xl border border-[#EADBCC] shadow-xs text-[#4A2E1B] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+        className="md:hidden fixed top-3 left-4 z-50 p-2 bg-[#FFFDF8] rounded-xl border border-[#E5D5BC] shadow-xs text-[#6B4227] hover:bg-[#FAF0DA] transition-colors cursor-pointer"
         aria-label="Open Menu"
       >
         <Menu className="h-5 w-5" />
@@ -147,45 +145,50 @@ export default function Sidebar() {
 
       {/* Mobile Backdrop */}
       {isOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-[#3D2413]/40 backdrop-blur-xs z-40 transition-opacity"
+        <div
+          className="md:hidden fixed inset-0 bg-[#3F2311]/40 backdrop-blur-xs z-40 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar Container */}
-      <aside className={`w-64 flex-shrink-0 bg-[#FFFDF9] border-r border-[#EADBCC] flex flex-col fixed md:relative h-full z-50 transition-transform duration-200 ease-in-out md:translate-x-0 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <aside
+        className={`w-64 flex-shrink-0 bg-[#FFFDF8] border-r border-[#E5D5BC] flex flex-col fixed md:relative h-full z-50 transition-transform duration-200 ease-in-out md:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-[#EADBCC]/80 bg-[#FFFDF9]">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="font-extrabold text-lg tracking-tight text-[#4A2E1B]">
-              Sorelin <span className="text-[#C69234] font-medium">Moka</span>
-            </span>
+        <div className="h-16 flex items-center justify-between px-5 border-b border-[#E5D5BC] bg-[#6B4227]">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/sorelin-logo-cream.png"
+              alt="Sorelin Bakery"
+              className="h-8 w-auto object-contain"
+            />
           </Link>
-          <button 
-            onClick={() => setIsOpen(false)} 
-            className="md:hidden p-1.5 text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2] rounded-lg transition-colors cursor-pointer" 
+          <button
+            onClick={() => setIsOpen(false)}
+            className="md:hidden p-1.5 text-[#FAF0DA]/80 hover:text-[#FAF0DA] hover:bg-[#54311B] rounded-lg transition-colors cursor-pointer"
             aria-label="Close Menu"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Navigation Body with Hidden Scrollbar (Scroll Functional) */}
-        <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {/* Navigation Body */}
+        <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto no-scrollbar">
           {/* Top Level: Dashboard */}
           <Link
             href="/"
             onClick={() => setIsOpen(false)}
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              isDashboardActive 
-                ? 'bg-[#4A2E1B] text-[#FFFDF9] shadow-xs' 
-                : 'text-[#6B5344] hover:bg-[#FAF7F2] hover:text-[#4A2E1B]'
+              isDashboardActive
+                ? 'bg-[#6B4227] text-[#FAF0DA] shadow-xs'
+                : 'text-[#6B4227] hover:bg-[#FAF0DA] hover:text-[#3F2311]'
             }`}
           >
-            <LayoutDashboard className={`h-4 w-4 ${isDashboardActive ? 'text-[#FDF0D0]' : 'text-[#7A6251]'}`} />
+            <LayoutDashboard className={`h-4 w-4 ${isDashboardActive ? 'text-[#F3DBAA]' : 'text-[#8E6D53]'}`} />
             <span>Dashboard</span>
           </Link>
 
@@ -198,30 +201,28 @@ export default function Sidebar() {
 
               return (
                 <div key={group.id} className="rounded-xl overflow-hidden">
-                  {/* Category Header Button (Strict Title Case, Consistent Tokens) */}
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
-                      hasActiveChild 
-                        ? 'text-[#4A2E1B] bg-[#FAF7F2]' 
-                        : 'text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#FAF7F2]/60'
+                      hasActiveChild
+                        ? 'text-[#3F2311] bg-[#FAF0DA]'
+                        : 'text-[#8E6D53] hover:text-[#3F2311] hover:bg-[#FAF0DA]/60'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <GroupIcon className={`h-4 w-4 ${hasActiveChild ? 'text-[#C69234]' : 'text-[#7A6251]'}`} />
+                      <GroupIcon className={`h-4 w-4 ${hasActiveChild ? 'text-[#C88A32]' : 'text-[#8E6D53]'}`} />
                       <span>{group.name}</span>
                     </div>
-                    <ChevronDown 
+                    <ChevronDown
                       className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        hasActiveChild ? 'text-[#4A2E1B]' : 'text-[#A89687]'
-                      } ${isGroupOpen ? 'rotate-180' : ''}`} 
+                        hasActiveChild ? 'text-[#6B4227]' : 'text-[#8E6D53]'
+                      } ${isGroupOpen ? 'rotate-180' : ''}`}
                     />
                   </button>
 
-                  {/* Submenu Items */}
                   {isGroupOpen && (
-                    <div className="mt-1 ml-4 pl-3.5 border-l-2 border-[#EADBCC] space-y-1 py-0.5">
+                    <div className="mt-1 ml-4 pl-3.5 border-l-2 border-[#E5D5BC] space-y-1 py-0.5">
                       {group.items.map((item) => {
                         const ItemIcon = item.icon;
                         const active = isItemActive(pathname, item.href);
@@ -233,11 +234,11 @@ export default function Sidebar() {
                             onClick={() => setIsOpen(false)}
                             className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                               active
-                                ? 'bg-[#4A2E1B] text-[#FFFDF9] font-semibold shadow-xs'
-                                : 'text-[#6B5344] hover:bg-[#FAF7F2] hover:text-[#4A2E1B] font-medium'
+                                ? 'bg-[#6B4227] text-[#FAF0DA] font-semibold shadow-xs'
+                                : 'text-[#6B4227] hover:bg-[#FAF0DA] hover:text-[#3F2311] font-medium'
                             }`}
                           >
-                            <ItemIcon className={`h-3.5 w-3.5 ${active ? 'text-[#FDF0D0]' : 'text-[#8A7160]'}`} />
+                            <ItemIcon className={`h-3.5 w-3.5 ${active ? 'text-[#F3DBAA]' : 'text-[#8E6D53]'}`} />
                             <span>{item.name}</span>
                           </Link>
                         );
@@ -251,21 +252,21 @@ export default function Sidebar() {
         </nav>
 
         {/* Footer Actions */}
-        <div className="p-3 border-t border-[#EADBCC] space-y-1.5 bg-[#FFFDF9]">
+        <div className="p-3 border-t border-[#E5D5BC] space-y-1.5 bg-[#FFFDF8]">
           <Link
             href="/kiosk"
             target="_blank"
-            className="w-full flex items-center justify-center py-2.5 bg-[#FAF7F2] text-[#4A2E1B] hover:bg-[#F3ECE1] border border-[#EADBCC] rounded-xl font-semibold text-xs transition-colors shadow-xs cursor-pointer text-center"
+            className="w-full flex items-center justify-center py-2.5 bg-[#FAF0DA] text-[#6B4227] hover:bg-[#F2E6CF] border border-[#E5D5BC] rounded-xl font-semibold text-xs transition-colors shadow-xs cursor-pointer text-center"
           >
-            <span>Customer Kiosk ↗</span>
+            <span>Self-Order Kiosk ↗</span>
           </Link>
           <form action={logoutAction}>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="w-full flex items-center gap-2.5 px-3 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl font-semibold text-xs transition-colors text-left cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
-              <span>Log Out</span>
+              <span>Sign Out</span>
             </button>
           </form>
         </div>

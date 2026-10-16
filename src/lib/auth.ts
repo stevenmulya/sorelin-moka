@@ -10,27 +10,28 @@ import {
 } from '@/lib/auth-token';
 
 const SESSION_MAX_AGE: Record<Role, number> = {
-  admin: 60 * 60 * 12, // 12 jam (cukup untuk satu hari operasional)
-  kiosk: 60 * 60 * 24 * 7, // perangkat kiosk dibiarkan menyala
+  admin: 60 * 60 * 12, // 12 hours (one full operating day)
+  kiosk: 60 * 60 * 24 * 7, // 7 days for active kiosk terminals
 };
 
-/** Bandingkan dua string tanpa membocorkan panjang/isi lewat waktu respon. */
+/** Constant-time string comparison via SHA-256 digest to prevent timing side-channels. */
 function safeEqual(a: string, b: string): boolean {
   const ha = createHash('sha256').update(a).digest();
   const hb = createHash('sha256').update(b).digest();
   return timingSafeEqual(ha, hb);
 }
 
-// ---- Pembatas percobaan login (in-memory; cukup untuk satu server di LAN) ----
+// ---- In-memory login rate limiter (scoped by client IP + username) ----
 const MAX_FAILS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 const LOCK_MS = 5 * 60 * 1000;
 const attempts = new Map<string, { fails: number; first: number; lockedUntil: number }>();
 
-async function clientKey(): Promise<string> {
+async function clientKey(username: string): Promise<string> {
   const h = await headers();
   const fwd = h.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return fwd || h.get('x-real-ip') || 'lan';
+  const ip = fwd || h.get('x-real-ip') || 'lan';
+  return `${ip}:${username.trim().toLowerCase()}`;
 }
 
 function checkLock(key: string): number {
@@ -57,19 +58,20 @@ export type LoginResult =
   | { success: true; role: Role }
   | { success: false; error: string };
 
-/** Validasi kredensial dari env, lalu pasang cookie sesi bertanda tangan. */
+/** Validate credentials against environment configuration and set a signed session cookie. */
 export async function authenticate(username: string, password: string): Promise<LoginResult> {
   if (!getAuthSecret()) {
-    console.error('[auth] AUTH_SECRET belum diset / kurang dari 32 karakter. Login dinonaktifkan.');
-    return { success: false, error: 'Server belum dikonfigurasi (AUTH_SECRET).' };
+    console.error('[auth] AUTH_SECRET is not configured or is shorter than 32 characters. Login disabled.');
+    return { success: false, error: 'Server authentication is not configured (AUTH_SECRET).' };
   }
 
-  const key = await clientKey();
+  const key = await clientKey(username);
   const lockMs = checkLock(key);
   if (lockMs > 0) {
+    const minutes = Math.ceil(lockMs / 60000);
     return {
       success: false,
-      error: `Terlalu banyak percobaan gagal. Coba lagi dalam ${Math.ceil(lockMs / 60000)} menit.`,
+      error: `Too many failed login attempts. Please try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`,
     };
   }
 
@@ -89,7 +91,7 @@ export async function authenticate(username: string, password: string): Promise<
   let matched: Role | null = null;
   for (const c of candidates) {
     if (!c.user || !c.pass) continue;
-    // Selalu hitung keduanya (tanpa short-circuit) agar waktu respon seragam
+    // Always evaluate both without short-circuiting to keep response time uniform
     const userOk = safeEqual(username, c.user);
     const passOk = safeEqual(password, c.pass);
     if (userOk && passOk && matched === null) matched = c.role;
@@ -97,7 +99,7 @@ export async function authenticate(username: string, password: string): Promise<
 
   if (!matched) {
     registerFail(key);
-    return { success: false, error: 'Username atau password salah.' };
+    return { success: false, error: 'Invalid username or password.' };
   }
 
   attempts.delete(key);
@@ -106,7 +108,6 @@ export async function authenticate(username: string, password: string): Promise<
     path: '/',
     maxAge: SESSION_MAX_AGE[matched],
     httpOnly: true,
-    // Di Vercel / HTTPS selalu gunakan secure: true
     secure:
       process.env.COOKIE_SECURE === 'true' ||
       process.env.VERCEL === '1' ||
@@ -120,19 +121,19 @@ export async function destroySession() {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
-/** Role sesi saat ini (null jika belum login / token tidak valid / kedaluwarsa). */
+/** Return the active session role, or null if unauthenticated or expired. */
 export async function getSessionRole(): Promise<Role | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   return verifySessionToken(token);
 }
 
-/** Wajib admin. Dipanggil di awal SETIAP server action admin & route handler admin. */
+/** Require an active admin session. Called at the start of every admin server action and route handler. */
 export async function requireAdmin(): Promise<void> {
   const role = await getSessionRole();
   if (role !== 'admin') redirect('/login');
 }
 
-/** Admin atau kiosk (untuk aksi yang memang boleh dipakai kiosk, mis. kirim pesanan). */
+/** Require an active admin or kiosk session. */
 export async function requireAnyRole(): Promise<Role> {
   const role = await getSessionRole();
   if (!role) redirect('/login');

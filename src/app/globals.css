@@ -1,24 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Patrick+Hand&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-sorelin-cream: #FAF7F2;
-  --color-sorelin-brown: #4A2E1B;
-  --color-sorelin-brown-dark: #3D2413;
-  --color-sorelin-brown-deep: #28170D;
-  --color-sorelin-milk: #FFFDF9;
-  --color-sorelin-gold: #C69234;
-  --color-sorelin-gold-light: #FDF0D0;
-  --color-sorelin-border: #EADBCC;
-  --color-sorelin-border-light: #F3ECE1;
-  --color-sorelin-muted: #7A6251;
+  --color-border: #E5D5BC;
+  --color-sorelin-cream: #FAF0DA;
+  --color-sorelin-brown: #6B4227;
+  --color-sorelin-brown-dark: #54311B;
+  --color-sorelin-brown-deep: #3F2311;
+  --color-sorelin-milk: #FFFDF8;
+  --color-sorelin-gold: #C88A32;
+  --color-sorelin-gold-light: #F3DBAA;
+  --color-sorelin-border: #E5D5BC;
+  --color-sorelin-border-light: #F2E6CF;
+  --color-sorelin-muted: #8E6D53;
 }
 
 @layer base {
   body {
-    background-color: #FAF7F2;
-    color: #382213;
+    background-color: #FAF0DA;
+    color: #3F2311;
   }
+}
+
+@utility font-handwriting {
+  font-family: 'Patrick Hand', 'Gaegu', cursive, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@utility font-korean {
+  font-family: 'Gaegu', 'Patrick Hand', cursive, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 @utility no-scrollbar {
@@ -29,12 +38,53 @@
   }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* =========================================================================
+   KOREAN BAKERY SCROLLBAR (CREAM & BROWN DUO-TONE)
+   ========================================================================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+
+::-webkit-scrollbar-track {
+  background: #FAF0DA;
+  border-left: 1.5px solid #6B4227;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6B4227;
+  border-radius: 4px;
+  border: 2px solid #FAF0DA;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #54311B;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #6B4227 #FAF0DA;
+}
+
+@utility kiosk-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #6B4227 #FAF0DA;
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #FAF0DA;
+    border-left: 1.5px dashed rgba(107, 66, 39, 0.4);
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #6B4227;
+    border-radius: 4px;
+    border: 2px solid #FAF0DA;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #54311B;
+  }
 }
 
 @media print {

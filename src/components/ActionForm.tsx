@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom';
 
 type ActionFn = (formData: FormData) => Promise<{ error?: string } | void>;
 
-/** Tombol submit yang otomatis nonaktif saat form diproses (mencegah klik ganda). */
+/** Submit button that automatically disables while its parent form is pending. */
 export function SubmitButton({
   children,
   className,
@@ -21,15 +21,20 @@ export function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending || disabled} title={title} className={`${className ?? ''} disabled:opacity-60 disabled:cursor-not-allowed`}>
+    <button
+      type="submit"
+      disabled={pending || disabled}
+      title={title}
+      className={`${className ?? ''} disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer`}
+    >
       {pending && pendingText ? pendingText : children}
     </button>
   );
 }
 
 /**
- * Form untuk server action yang mengembalikan { error }. Menampilkan pesan error ke pengguna,
- * dengan opsi konfirmasi dan isian alasan (mis. alasan pembatalan).
+ * Form wrapper for server actions returning `{ error?: string }`.
+ * Supports optional confirmation dialog, required reason prompt, and onSuccess callback.
  */
 export default function ActionForm({
   action,
@@ -37,13 +42,15 @@ export default function ActionForm({
   className,
   confirmMessage,
   reason,
+  onSuccess,
 }: {
   action: ActionFn;
   children: ReactNode;
   className?: string;
   confirmMessage?: string;
-  /** Minta teks dari pengguna lalu kirim sebagai field `name` (wajib diisi). */
+  /** Prompt user for a required reason string and append it as `reason.name`. */
   reason?: { name: string; message: string };
+  onSuccess?: () => void;
 }) {
   return (
     <form
@@ -53,13 +60,17 @@ export default function ActionForm({
         if (reason) {
           const value = window.prompt(reason.message)?.trim();
           if (!value) {
-            window.alert('Reason is required.');
+            window.alert('A reason is required to proceed.');
             return;
           }
           formData.set(reason.name, value);
         }
         const res = (await action(formData)) as { error?: string } | undefined;
-        if (res?.error) window.alert(res.error);
+        if (res?.error) {
+          window.alert(res.error);
+        } else {
+          onSuccess?.();
+        }
       }}
     >
       {children}

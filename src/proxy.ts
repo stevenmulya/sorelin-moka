@@ -3,13 +3,13 @@ import type { NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth-token';
 
 /**
- * Gerbang akses utama (lapisan pertama). Lapisan kedua: setiap server action &
- * route handler tetap memanggil requireAdmin()/requireAnyRole() sendiri.
+ * Primary access gateway (first layer). Second layer: every server action and
+ * route handler still calls requireAdmin() or requireAnyRole() directly.
  *
- * Aturan:
- *  - /login                : publik
- *  - /kiosk, /uploads      : role kiosk atau admin
- *  - semua lainnya (+/api) : hanya admin
+ * Rules:
+ *  - /login                : public
+ *  - /kiosk, /uploads      : kiosk or admin role
+ *  - all other routes      : admin only
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,7 +18,7 @@ export async function proxy(request: NextRequest) {
     pathname === '/login' ||
     pathname.startsWith('/login/') ||
     pathname.startsWith('/icons/') ||
-    pathname.startsWith('/sorelin-') ||
+    pathname.toLowerCase().startsWith('/sorelin-') ||
     pathname === '/manifest.json' ||
     pathname === '/icon.svg' ||
     pathname === '/placeholder.jpg' ||
@@ -60,6 +60,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Aset statis build & file publik non-sensitif dikecualikan. Selain itu SEMUA path lewat proxy.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icon.svg|placeholder.jpg|sorelin-.*\\.png|icons/.*).*)'],
+  // Static build assets and public non-sensitive files are excluded. All other paths pass through proxy.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icon.svg|placeholder.jpg|[sS][oO][rR][eE][lL][iI][nN]-.*\\.png|icons/.*).*)'],
 };

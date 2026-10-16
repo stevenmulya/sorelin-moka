@@ -1,40 +1,39 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
+import { UPLOAD_DIR } from '../src/lib/uploads';
 import fs from 'fs';
 import path from 'path';
 
-const prisma = new PrismaClient();
-
 async function cleanup() {
-  const txs = await prisma.transaction.findMany({
-    select: { selfieUrl: true }
-  });
-  const imgs = await prisma.productImage.findMany({
-    select: { url: true }
-  });
+  const [txs, imgs] = await Promise.all([
+    prisma.transaction.findMany({
+      select: { selfieUrl: true },
+    }),
+    prisma.productImage.findMany({
+      select: { url: true },
+    }),
+  ]);
 
   const validFiles = new Set<string>();
   for (const t of txs) {
-    if (t.selfieUrl) {
+    if (t.selfieUrl && !t.selfieUrl.startsWith('data:')) {
       validFiles.add(path.basename(t.selfieUrl));
     }
   }
   for (const img of imgs) {
-    if (img.url) {
+    if (img.url && !img.url.startsWith('data:')) {
       validFiles.add(path.basename(img.url));
     }
   }
 
   console.log('Valid referenced files count:', validFiles.size);
-  console.log('Valid files:', Array.from(validFiles));
 
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  if (fs.existsSync(uploadsDir)) {
-    const files = fs.readdirSync(uploadsDir);
+  if (fs.existsSync(UPLOAD_DIR)) {
+    const files = fs.readdirSync(UPLOAD_DIR);
     let deletedCount = 0;
     for (const file of files) {
       if (!validFiles.has(file)) {
         console.log('Deleting orphaned upload:', file);
-        fs.unlinkSync(path.join(uploadsDir, file));
+        fs.unlinkSync(path.join(UPLOAD_DIR, file));
         deletedCount++;
       } else {
         console.log('Keeping valid file:', file);

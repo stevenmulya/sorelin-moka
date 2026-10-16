@@ -30,19 +30,19 @@ async function syncTurso() {
   const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
   if (!tursoUrl) {
-    console.error('\n❌ Error: Variabel TURSO_DATABASE_URL belum diatur!');
-    console.error('Contoh: TURSO_DATABASE_URL="libsql://steventjendratama-steventjendratama.aws-ap-southeast-2.turso.io"');
+    console.error('\n❌ Error: TURSO_DATABASE_URL environment variable is not set!');
+    console.error('Example: TURSO_DATABASE_URL="libsql://your-db-name.turso.io"');
     process.exit(1);
   }
   if (!tursoToken) {
-    console.error('\n❌ Error: Variabel TURSO_AUTH_TOKEN belum diatur!');
-    console.error('Silakan ambil token dari dashboard Turso (Database -> Tokens -> Create/Generate Token)');
-    console.error('lalu masukkan ke file .env Anda atau jalankan:');
-    console.error('  TURSO_AUTH_TOKEN="<token_anda>" npm run db:turso:sync');
+    console.error('\n❌ Error: TURSO_AUTH_TOKEN environment variable is not set!');
+    console.error('Generate a token in your Turso dashboard (Database -> Tokens -> Generate Token)');
+    console.error('and add it to your .env file or run:');
+    console.error('  TURSO_AUTH_TOKEN="<your_token>" npm run db:turso:sync');
     process.exit(1);
   }
 
-  console.log(`\n🚀 Menghubungkan ke Turso Cloud: ${tursoUrl}...`);
+  console.log(`\n🚀 Connecting to Turso Cloud: ${tursoUrl}...`);
   const tursoClient = createClient({
     url: tursoUrl,
     authToken: tursoToken,
@@ -166,13 +166,13 @@ async function syncTurso() {
     `CREATE INDEX IF NOT EXISTS "Expense_createdAt_idx" ON "Expense"("createdAt");`,
   ];
 
-  console.log('📦 Membuat struktur tabel dan indeks di Turso...');
+  console.log('📦 Creating tables and indexes on Turso...');
   for (const sql of schemaStatements) {
     await tursoClient.execute(sql);
   }
-  console.log('✅ Struktur tabel berhasil dibuat!');
+  console.log('✅ Database schema created successfully!');
 
-  // Copy katalog produk awal dari lokal (dev.db) agar aplikasi tidak kosong di Vercel
+  // Copy initial product catalog from local (dev.db) so the cloud database is seeded
   try {
     const localClient = createClient({ url: 'file:prisma/dev.db' });
     const localTypes = await localClient.execute('SELECT * FROM ProductType');
@@ -180,7 +180,7 @@ async function syncTurso() {
     const localProducts = await localClient.execute('SELECT * FROM Product');
     const localImages = await localClient.execute('SELECT * FROM ProductImage');
 
-    console.log(`📋 Menyalin katalog produk dari lokal (${localProducts.rows.length} item)...`);
+    console.log(`📋 Copying product catalog from local SQLite (${localProducts.rows.length} items)...`);
 
     for (const t of localTypes.rows) {
       await tursoClient.execute({
@@ -227,15 +227,15 @@ async function syncTurso() {
       });
     }
 
-    console.log('✨ Katalog produk & varian berhasil disalin ke Turso!');
+    console.log('✨ Product catalog and variants synced to Turso!');
   } catch (err) {
-    console.warn('⚠️ Melewati penyalinan data lokal (akan menggunakan tabel kosong):', err);
+    console.warn('⚠️ Skipping local catalog copy (using empty tables):', err);
   }
 
-  console.log('\n🎉 Selesai! Database Turso Anda siap digunakan oleh Vercel.');
+  console.log('\n🎉 Done! Your Turso database is ready for production.');
 }
 
 syncTurso().catch((e) => {
-  console.error('\n❌ Gagal sinkronisasi ke Turso:', e);
+  console.error('\n❌ Failed to sync with Turso:', e);
   process.exit(1);
 });

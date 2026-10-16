@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { UserError, cleanStr, cleanText, parseInteger, requireInteger } from '@/lib/validation';
 import { LOW_STOCK_THRESHOLD } from '@/lib/constants';
 
-// ============================ STOK ============================
+// ============================ STOCK ============================
 
 export const STOCK_TYPES = ['IN', 'OUT', 'RESET'] as const;
 export type StockType = (typeof STOCK_TYPES)[number];
@@ -16,7 +16,7 @@ export interface AdjustStockInput {
   notes: string;
 }
 
-/** Penyesuaian stok manual. Stok & log berubah bersama-sama (atomik); stok tidak bisa menjadi minus. */
+/** Manual stock adjustment. Stock and inventory log are updated atomically; stock can never become negative. */
 export async function adjustStockService(input: AdjustStockInput) {
   if (!(STOCK_TYPES as readonly string[]).includes(input.type)) throw new UserError('Invalid stock adjustment type.');
   const type = input.type as StockType;
@@ -64,7 +64,7 @@ export async function adjustStockService(input: AdjustStockInput) {
 
 export { LOW_STOCK_THRESHOLD };
 
-// ============================ PRODUK ============================
+// ============================ PRODUCTS ============================
 
 export interface ProductInput {
   name: string;
@@ -76,7 +76,7 @@ export interface ProductInput {
   discountPrice: number | null;
 }
 
-/** Validasi form produk di server (validasi di browser hanya kenyamanan, bukan keamanan). */
+/** Server-side product form validation. */
 export function parseProductForm(fd: FormData): ProductInput {
   const name = cleanStr(fd.get('name'), 100);
   if (!name) throw new UserError('Product name is required.');
@@ -136,13 +136,13 @@ export async function updateProductService(id: number, input: ProductInput, imag
   });
 }
 
-/** "Hapus" produk = arsipkan. Riwayat stok & transaksi tetap utuh. Gambar dibiarkan agar bisa dipulihkan. */
+/** Soft-delete (archive) a product so historical transactions and stock logs remain intact. */
 export async function archiveProductService(id: number) {
   const r = await prisma.product.updateMany({ where: { id, isActive: true }, data: { isActive: false, isBestSeller: false, isFavorite: false } });
   if (r.count === 0) throw new UserError('Product not found.');
 }
 
-/** Hapus satu gambar produk dari DB; mengembalikan URL file yang harus dihapus dari disk. */
+/** Remove a single product image from the database and return its URL for cleanup. */
 export async function removeProductImageService(productId: number, imageId: number): Promise<string> {
   const img = await prisma.productImage.findFirst({ where: { id: imageId, productId } });
   if (!img) throw new UserError('Image not found.');
@@ -151,8 +151,8 @@ export async function removeProductImageService(productId: number, imageId: numb
 }
 
 /**
- * Menyimpan urutan prioritas dari drag & drop. Urutan halaman ditempatkan kembali pada posisi-posisi
- * yang sama di urutan GLOBAL, lalu seluruh prioritas dinormalisasi -> tidak bentrok antar halaman.
+ * Persist drag-and-drop priority order. The reordered page subset is placed back
+ * into its corresponding global slots and normalized across all active products.
  */
 export async function reorderPrioritiesService(orderedIds: unknown) {
   if (!Array.isArray(orderedIds) || orderedIds.length === 0 || orderedIds.length > 500) {
@@ -182,11 +182,15 @@ export async function reorderPrioritiesService(orderedIds: unknown) {
 
     const current = new Map(all.map((p) => [p.id, p.priority]));
     const total = order.length;
+    const updates: Promise<unknown>[] = [];
     for (let idx = 0; idx < total; idx++) {
       const priority = total - idx;
       if (current.get(order[idx]) !== priority) {
-        await tx.product.update({ where: { id: order[idx] }, data: { priority } });
+        updates.push(tx.product.update({ where: { id: order[idx] }, data: { priority } }));
       }
+    }
+    if (updates.length > 0) {
+      await Promise.all(updates);
     }
   });
 }

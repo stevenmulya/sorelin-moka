@@ -10,33 +10,33 @@ export default function OrderActions({ id, status }: { id: number; status: strin
     <div className="flex items-center gap-2 justify-end">
       {status === STATUS.PREPARING && (
         <>
-          <ActionForm 
-            action={updateTransactionStatus} 
-            confirmMessage="Mark this order as READY for pickup?"
+          <ActionForm
+            action={updateTransactionStatus}
+            confirmMessage="Mark this order as Ready for Pickup?"
           >
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="status" value={STATUS.READY} />
-            <SubmitButton 
+            <SubmitButton
               pendingText="..."
-              className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
-              title="Mark Ready"
+              className="px-3 py-1.5 bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] hover:bg-[#F2E6CF] rounded-xl transition-colors text-xs font-semibold flex items-center gap-1.5"
+              title="Mark Ready for Pickup"
             >
-              <CheckCircle2 className="h-4 w-4" /> Ready for Pickup
+              <CheckCircle2 className="h-3.5 w-3.5 text-[#C88A32]" /> Ready for Pickup
             </SubmitButton>
           </ActionForm>
 
-          <ActionForm 
-            action={cancelTransaction} 
-            confirmMessage="Cancel this order and revert stock?"
+          <ActionForm
+            action={cancelTransaction}
+            confirmMessage="Cancel this order and restore stock?"
             reason={{ name: 'cancelReason', message: 'Cancellation reason (required):' }}
           >
             <input type="hidden" name="transactionId" value={id} />
-            <SubmitButton 
+            <SubmitButton
               pendingText="..."
-              className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
-              title="Cancel"
+              className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1.5"
+              title="Cancel Order"
             >
-              <XCircle className="h-4 w-4" /> Cancel
+              <XCircle className="h-3.5 w-3.5" /> Cancel
             </SubmitButton>
           </ActionForm>
         </>
@@ -44,33 +44,33 @@ export default function OrderActions({ id, status }: { id: number; status: strin
 
       {status === STATUS.READY && (
         <>
-          <ActionForm 
-            action={updateTransactionStatus} 
-            confirmMessage="Mark this order as PICKED UP by customer?"
+          <ActionForm
+            action={updateTransactionStatus}
+            confirmMessage="Mark this order as Picked Up by the customer?"
           >
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="status" value={STATUS.PICKED_UP} />
-            <SubmitButton 
+            <SubmitButton
               pendingText="..."
-              className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
+              className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1.5"
               title="Mark Picked Up"
             >
-              <PackageCheck className="h-4 w-4" /> Picked Up
+              <PackageCheck className="h-3.5 w-3.5" /> Picked Up
             </SubmitButton>
           </ActionForm>
 
-          <ActionForm 
-            action={cancelTransaction} 
-            confirmMessage="Cancel this order and revert stock?"
+          <ActionForm
+            action={cancelTransaction}
+            confirmMessage="Cancel this order and restore stock?"
             reason={{ name: 'cancelReason', message: 'Cancellation reason (required):' }}
           >
             <input type="hidden" name="transactionId" value={id} />
-            <SubmitButton 
+            <SubmitButton
               pendingText="..."
-              className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors text-xs font-medium flex items-center gap-1.5" 
-              title="Cancel"
+              className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1.5"
+              title="Cancel Order"
             >
-              <XCircle className="h-4 w-4" /> Cancel
+              <XCircle className="h-3.5 w-3.5" /> Cancel
             </SubmitButton>
           </ActionForm>
         </>

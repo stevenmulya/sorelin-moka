@@ -39,12 +39,17 @@ export default async function TransactionsPage({
   }
 
   if (q) {
+    const numericMatch = /^(?:TRX-)?0*(\d+)/i.exec(q);
+    const parsedId = numericMatch ? parseInt(numericMatch[1], 10) : null;
+
     where.OR = [
       { customer: { contains: q } },
       { cashierName: { contains: q } },
       { status: { contains: q } },
+      ...(parsedId !== null && !isNaN(parsedId) ? [{ id: parsedId }] : []),
     ];
   }
+
 
   if (dateStr && view !== 'shift') {
     const parsed = parseWibDate(dateStr);

@@ -88,6 +88,22 @@
 }
 
 @media print {
+  @page {
+    size: 58mm auto;
+    margin: 0mm;
+  }
+
+  html, body {
+    width: 48mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
   /* Hide everything by default on print */
   body * {
     visibility: hidden;
@@ -97,27 +113,35 @@
   #printable-receipt, #printable-receipt * {
     visibility: visible;
     color: #000000 !important;
+    border-color: #000000 !important;
     background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
   
-  /* Position it perfectly at the top left of the thermal paper roll */
+  /* Position it perfectly for 48mm print head on Blueprint Lite 58 */
   #printable-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 58mm !important; /* Blueprint thermal printer width */
-    max-width: 58mm !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 48mm !important;
+    max-width: 48mm !important;
+    min-width: 48mm !important;
     margin: 0 !important;
-    padding: 2mm 3mm !important;
+    padding: 2mm 1.5mm !important;
     box-shadow: none !important;
+    border: none !important;
     background-color: #ffffff !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   /* Force pure monochrome high-contrast for thermal printer rasterizer */
   #printable-receipt img {
-    filter: grayscale(100%) contrast(250%) brightness(105%) !important;
+    filter: grayscale(100%) contrast(500%) brightness(100%) !important;
     image-rendering: pixelated !important;
   }
 }
+

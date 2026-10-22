@@ -1,10 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Bluetooth, CheckCircle2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import { generateTrxCode, formatRupiah } from '@/lib/utils';
 import { formatWibDateTime } from '@/lib/dates';
 import { useRouter, usePathname } from 'next/navigation';
+import {
+  printReceiptViaBluetooth,
+  getConnectedPrinterName,
+  tryRestorePermittedPrinter,
+  isWebBluetoothSupported,
+  isIOSDevice,
+} from '@/lib/thermal-printer';
 
 export interface PrintReceiptItem {
   id: number;
@@ -351,6 +358,15 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
   const [includePhoto, setIncludePhoto] = useState(Boolean(trx.selfieUrl));
   const [ditheredSelfie, setDitheredSelfie] = useState<string | null>(null);
   const [thermalLogo, setThermalLogo] = useState<string | null>(null);
+  const [btPrinting, setBtPrinting] = useState(false);
+  const [btError, setBtError] = useState<string | null>(null);
+  const [btSuccess, setBtSuccess] = useState<string | null>(null);
+  const [connectedPrinter, setConnectedPrinter] = useState<string | null>(null);
+  const [clientEnv, setClientEnv] = useState<{
+    btSupported: boolean;
+    isIOS: boolean;
+    currentUrl: string;
+  }>({ btSupported: true, isIOS: false, currentUrl: '' });
   const router = useRouter();
   const pathname = usePathname();
 
@@ -359,6 +375,19 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
 
   useEffect(() => {
     let active = true;
+    tryRestorePermittedPrinter().then((restored) => {
+      if (!active) return;
+      setClientEnv({
+        btSupported: isWebBluetoothSupported(),
+        isIOS: isIOSDevice(),
+        currentUrl: window.location.href,
+      });
+      const currentConnected = restored || getConnectedPrinterName();
+      if (currentConnected) {
+        setConnectedPrinter(currentConnected);
+      }
+    });
+
     createThermalLogoDataUrl('/sorelin-lockup-secondary.png').then((url) => {
       if (active) setThermalLogo(url);
     });
@@ -372,22 +401,50 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
     };
   }, [trx.selfieUrl]);
 
-  const handlePrint = useCallback(() => {
+  const handleBluetoothPrint = useCallback(
+    async (forceNewDevice = false) => {
+      setBtPrinting(true);
+      setBtError(null);
+      setBtSuccess(null);
+      try {
+        const printerName = await printReceiptViaBluetooth(trx, includePhoto, forceNewDevice);
+        setConnectedPrinter(printerName);
+        setBtSuccess(`Struk berhasil dikirim ke ${printerName}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Gagal terhubung ke printer Bluetooth.';
+        // Ignore user cancellation of Bluetooth chooser dialog
+        if (!msg.toLowerCase().includes('cancelled') && !msg.toLowerCase().includes('canceled')) {
+          setBtError(msg);
+        }
+      } finally {
+        setBtPrinting(false);
+      }
+    },
+    [trx, includePhoto]
+  );
+
+  const handleSystemPrint = useCallback(() => {
     const receiptEl = document.getElementById('printable-receipt');
     if (!receiptEl) {
       window.print();
       return;
     }
 
-    // Isolated hidden iframe with complete self-contained styles for 48mm Blueprint Lite 58
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.top = '-9999px';
-    printFrame.style.left = '-9999px';
-    printFrame.style.width = '48mm';
-    printFrame.style.height = '0';
-    printFrame.style.border = 'none';
-    document.body.appendChild(printFrame);
+    // Reuse a persistent hidden iframe so the browser print dialog NEVER loses its DOM target
+    // while the user is choosing paper size or printer settings.
+    const frameId = 'sorelin-persistent-print-frame';
+    let printFrame = document.getElementById(frameId) as HTMLIFrameElement | null;
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      printFrame.id = frameId;
+      printFrame.style.position = 'fixed';
+      printFrame.style.top = '-9999px';
+      printFrame.style.left = '-9999px';
+      printFrame.style.width = '48mm';
+      printFrame.style.height = '0';
+      printFrame.style.border = 'none';
+      document.body.appendChild(printFrame);
+    }
 
     const frameDoc = printFrame.contentWindow?.document;
     if (!frameDoc) {
@@ -436,16 +493,10 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
 
     const triggerPrint = () => {
       try {
-        printFrame.contentWindow?.focus();
-        printFrame.contentWindow?.print();
+        printFrame?.contentWindow?.focus();
+        printFrame?.contentWindow?.print();
       } catch {
         window.print();
-      } finally {
-        setTimeout(() => {
-          if (document.body.contains(printFrame)) {
-            document.body.removeChild(printFrame);
-          }
-        }, 2000);
       }
     };
 
@@ -473,12 +524,15 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
     if (autoPrint) {
       // Clean up URL to remove ?print=true so it doesn't re-trigger on reload
       router.replace(pathname || `/transactions/${trx.id}`);
-      const timer = setTimeout(() => {
-        handlePrint();
-      }, 450);
-      return () => clearTimeout(timer);
+      // If a Bluetooth printer was already connected earlier in this shift, auto-print directly via Bluetooth!
+      if (getConnectedPrinterName()) {
+        const timer = setTimeout(() => {
+          handleBluetoothPrint(false);
+        }, 300);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [autoPrint, router, pathname, trx.id, handlePrint]);
+  }, [autoPrint, router, pathname, trx.id, handleBluetoothPrint]);
 
   const photoSrc = ditheredSelfie || trx.selfieUrl;
   const logoSrc = thermalLogo || '/sorelin-lockup-secondary.png';
@@ -641,29 +695,98 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
                 </div>
               </div>
 
-              {/* Blueprint Printer Guidance Tip */}
-              <div className="mt-3 px-3 py-2 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-[10px] text-[#6B4227] leading-tight text-center w-full max-w-[260px]">
-                <span className="font-bold">Setelan Blueprint Lite 58:</span><br />
-                Paper size: <b>58mm</b> • Margin: <b>None</b> • Scale: <b>100%</b> • Uncheck <b>Headers &amp; Footers</b>.
+              {/* Status & Guidance Area */}
+              <div className="mt-3 w-full max-w-[280px] space-y-2">
+                {connectedPrinter && (
+                  <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 font-semibold truncate">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate">{connectedPrinter}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleBluetoothPrint(true)}
+                      disabled={btPrinting}
+                      className="text-[10px] font-bold text-emerald-700 underline hover:text-emerald-900 shrink-0 cursor-pointer"
+                    >
+                      Ganti Printer
+                    </button>
+                  </div>
+                )}
+
+                {btSuccess && (
+                  <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 font-medium text-center">
+                    {btSuccess}
+                  </div>
+                )}
+
+                {btError && (
+                  <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-[11px] text-red-700 flex items-start gap-1.5 leading-snug">
+                    <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
+                    <span>{btError}</span>
+                  </div>
+                )}
+
+                {clientEnv.isIOS && !clientEnv.btSupported && (
+                  <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-900 leading-relaxed space-y-1.5">
+                    <p className="font-bold text-amber-950">Cara Print Bluetooth di iPhone / iPad:</p>
+                    <p>
+                      Safari iOS memblokir Bluetooth langsung. Jangan pairing printer dari menu Settings iOS — cukup nyalakan Bluetooth lalu buka POS ini di aplikasi gratis <b>Bluefy – Web BLE Browser</b> (App Store).
+                    </p>
+                    {clientEnv.currentUrl && (
+                      <a
+                        href={`bluefy://open?url=${encodeURIComponent(clientEnv.currentUrl)}`}
+                        className="mt-1 w-full py-1.5 px-2.5 bg-amber-700 text-white rounded-lg font-bold text-[10px] inline-flex items-center justify-center gap-1 hover:bg-amber-800 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Buka Halaman Ini di Aplikasi Bluefy
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Bottom Action Buttons */}
-            <div className="p-3.5 border-t border-[#EADBCC] bg-[#FFFDF9] flex gap-2">
+            <div className="p-3.5 border-t border-[#EADBCC] bg-[#FFFDF9] flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-1/3 py-2.5 bg-[#FAF7F2] border border-[#EADBCC] text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#EADBCC]/30 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                onClick={() => handleBluetoothPrint(false)}
+                disabled={btPrinting}
+                className="w-full py-2.5 px-3 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-xs font-bold hover:bg-[#3D2413] disabled:opacity-60 transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
-                Close
+                {btPrinting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Mencetak ke Blueprint Lite 58...</span>
+                  </>
+                ) : (
+                  <>
+                    <Bluetooth className="h-4 w-4" />
+                    <span>
+                      {connectedPrinter
+                        ? `Print Langsung (${connectedPrinter})`
+                        : 'Print Langsung via Bluetooth'}
+                    </span>
+                  </>
+                )}
               </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="w-2/3 py-2.5 bg-[#4A2E1B] text-[#FFFDF9] rounded-xl text-xs font-bold hover:bg-[#3D2413] transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Printer className="h-4 w-4" /> Print with Blueprint
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="w-1/3 py-2 bg-[#FAF7F2] border border-[#EADBCC] text-[#7A6251] hover:text-[#4A2E1B] hover:bg-[#EADBCC]/30 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSystemPrint}
+                  className="w-2/3 py-2 bg-[#FAF0DA] border border-[#E5D5BC] text-[#6B4227] hover:bg-[#F3DBAA]/60 rounded-xl text-[11px] font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5" /> Print USB / Simpan PDF
+                </button>
+              </div>
             </div>
           </div>
         </div>

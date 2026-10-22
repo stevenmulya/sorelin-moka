@@ -25,7 +25,7 @@ export default async function AdminLayout({
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-[#FFFDF8] border-b border-[#E5D5BC]">
-          <div className="flex items-center md:hidden">
+          <div className="flex items-center pl-11 md:hidden">
             <Link href="/" className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -38,7 +38,7 @@ export default async function AdminLayout({
           <div className="hidden md:block">
             {/* Title / Brand Info */}
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-4 w-full md:w-auto">
+          <div className="flex flex-wrap items-center justify-end gap-4 ml-auto">
             {!activeShift ? (
               <>
                 <span className="hidden sm:inline-block text-sm font-medium text-[#8E6D53]">

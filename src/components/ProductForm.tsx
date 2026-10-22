@@ -72,7 +72,7 @@ export default function ProductForm({ initialData }: { initialData?: Product }) 
                   <input
                     type="text"
                     name="type"
-                    defaultValue={initialData?.type?.name || 'Food'}
+                    defaultValue={initialData?.type?.name || 'Saltbread'}
                     required
                     maxLength={50}
                     className="w-full px-3.5 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:bg-[#FFFDF8] transition-all"
@@ -179,6 +179,9 @@ export default function ProductForm({ initialData }: { initialData?: Product }) 
                   multiple
                   className="w-full px-3 py-2 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-xs text-[#8E6D53] focus:outline-none file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#6B4227] file:text-[#FAF0DA] hover:file:bg-[#54311B] file:cursor-pointer"
                 />
+                <p className="text-[11px] text-[#8E6D53] mt-1.5">
+                  Max 4 images per upload (JPG, PNG, WebP, GIF • up to 3 MB each).
+                </p>
               </div>
             </div>
 

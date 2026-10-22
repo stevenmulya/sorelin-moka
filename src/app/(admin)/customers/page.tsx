@@ -20,27 +20,11 @@ export default async function CustomersPage({
   await connection();
   const resolvedParams = await searchParams;
   const q = resolvedParams.q?.trim() || '';
-  const page = parsePage(resolvedParams.page);
+  const rawPage = parsePage(resolvedParams.page);
   const take = 10;
-  const skip = (page - 1) * take;
 
   // Group by customer using DB Engine with database pagination
-  const [paginatedStats, allCustomerGroups, topBuyerGroup] = await Promise.all([
-    prisma.transaction.groupBy({
-      by: ['customer'],
-      _sum: { amount: true },
-      _count: { _all: true },
-      _max: { createdAt: true },
-      where: {
-        status: { in: [...PAID_STATUSES] },
-        customer: q ? { contains: q } : undefined,
-      },
-      orderBy: {
-        _sum: { amount: 'desc' },
-      },
-      take,
-      skip,
-    }),
+  const [allCustomerGroups, topBuyerGroup] = await Promise.all([
     prisma.transaction.groupBy({
       by: ['customer'],
       where: {
@@ -64,6 +48,24 @@ export default async function CustomersPage({
 
   const totalItems = allCustomerGroups.length;
   const totalPages = Math.ceil(totalItems / take) || 1;
+  const page = Math.min(rawPage, totalPages);
+  const skip = (page - 1) * take;
+
+  const paginatedStats = await prisma.transaction.groupBy({
+    by: ['customer'],
+    _sum: { amount: true },
+    _count: { _all: true },
+    _max: { createdAt: true },
+    where: {
+      status: { in: [...PAID_STATUSES] },
+      customer: q ? { contains: q } : undefined,
+    },
+    orderBy: {
+      _sum: { amount: 'desc' },
+    },
+    take,
+    skip,
+  });
 
   const customers = paginatedStats.map((s) => ({
     name: s.customer || 'Guest',

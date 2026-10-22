@@ -17,6 +17,8 @@ export interface ProductRow {
   priority?: number | null;
   isBestSeller?: boolean | null;
   isFavorite?: boolean | null;
+  type?: { name: string } | null;
+  variant?: { name: string } | null;
   images?: Array<{ url: string }> | null;
 }
 
@@ -115,8 +117,20 @@ export default function ProductTableBody({
                 />
               </div>
               <div>
-                <div className="font-semibold text-[#3F2311]">{product.name}</div>
-                <div className="text-xs text-[#8E6D53] mt-0.5 truncate max-w-[200px]">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[#3F2311]">{product.name}</span>
+                  {product.type?.name && (
+                    <span className="px-2 py-0.5 bg-[#FAF0DA] border border-[#E5D5BC] text-[#8E6D53] text-[10px] font-semibold rounded-md">
+                      {product.type.name}
+                    </span>
+                  )}
+                  {product.variant?.name && (
+                    <span className="px-2 py-0.5 bg-[#F3DBAA]/60 border border-[#DFC082] text-[#54311B] text-[10px] font-semibold rounded-md">
+                      {product.variant.name}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-[#8E6D53] mt-0.5 truncate max-w-[240px]">
                   {product.description || '-'}
                 </div>
               </div>

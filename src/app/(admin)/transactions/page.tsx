@@ -22,14 +22,13 @@ export default async function TransactionsPage({
 }) {
   const resolvedParams = await searchParams;
 
-  const page = parsePage(resolvedParams.page);
+  const rawPage = parsePage(resolvedParams.page);
   const sort = typeof resolvedParams.sort === 'string' ? resolvedParams.sort : 'newest';
   const q = typeof resolvedParams.q === 'string' ? resolvedParams.q.trim() : '';
   const dateStr = typeof resolvedParams.date === 'string' ? resolvedParams.date.trim() : '';
   const view = typeof resolvedParams.view === 'string' ? resolvedParams.view : 'shift';
 
   const take = 10;
-  const skip = (page - 1) * take;
 
   const where: Prisma.TransactionWhereInput = {};
 
@@ -50,7 +49,6 @@ export default async function TransactionsPage({
     ];
   }
 
-
   if (dateStr && view !== 'shift') {
     const parsed = parseWibDate(dateStr);
     if (parsed) {
@@ -65,17 +63,17 @@ export default async function TransactionsPage({
     createdAt: sort === 'oldest' ? 'asc' : 'desc',
   };
 
-  const [totalItems, transactions] = await Promise.all([
-    prisma.transaction.count({ where }),
-    prisma.transaction.findMany({
-      where,
-      orderBy,
-      take,
-      skip,
-    }),
-  ]);
-
+  const totalItems = await prisma.transaction.count({ where });
   const totalPages = Math.ceil(totalItems / take) || 1;
+  const page = Math.min(rawPage, totalPages);
+  const skip = (page - 1) * take;
+
+  const transactions = await prisma.transaction.findMany({
+    where,
+    orderBy,
+    take,
+    skip,
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

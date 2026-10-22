@@ -99,14 +99,14 @@ export default async function ReportPage({
   ]);
 
   // 1. FINANCE CALCULATIONS (Aggregated directly)
-  const todayGrossRevenue = revenueSum._sum.amount || 0;
-  const todayApportionedOpex = expenseSum._sum.amount || 0;
-  let todayCogs = 0;
+  const grossRevenue = revenueSum._sum.amount || 0;
+  const totalOpex = expenseSum._sum.amount || 0;
+  let totalCogs = 0;
   for (const item of cogsItems) {
-    todayCogs += item.quantity * item.costPrice;
+    totalCogs += item.quantity * item.costPrice;
   }
 
-  const todayNetProfit = todayGrossRevenue - todayCogs - todayApportionedOpex;
+  const netProfit = grossRevenue - totalCogs - totalOpex;
 
   // 2. KITCHEN PERFORMANCE & PEAK HOURS (Single pass over paidTransactions)
   let totalPrepTimeMs = 0;
@@ -126,15 +126,17 @@ export default async function ReportPage({
       }
     }
   }
-  const avgPrepTimeMinutes = validPrepCount > 0 ? Math.round(totalPrepTimeMs / validPrepCount / 60000) : 0;
+  const avgPrepTimeMinutes = validPrepCount > 0 ? Math.max(1, Math.round(totalPrepTimeMs / validPrepCount / 60000)) : 0;
 
   // 3. SALES ANALYTICS
   const uniqueCustomers = customerCount.length;
 
   let peakHourStr = 'N/A';
   if (Object.keys(hourCounts).length > 0) {
-    const peakHour = Object.keys(hourCounts).reduce((a, b) => (hourCounts[parseInt(a)] > hourCounts[parseInt(b)] ? a : b));
-    peakHourStr = `${peakHour}:00 - ${parseInt(peakHour) + 1}:00`;
+    const peakHourKey = Object.keys(hourCounts).reduce((a, b) => (hourCounts[parseInt(a)] > hourCounts[parseInt(b)] ? a : b));
+    const h = parseInt(peakHourKey, 10);
+    const nextH = (h + 1) % 24;
+    peakHourStr = `${String(h).padStart(2, '0')}:00 - ${String(nextH).padStart(2, '0')}:00`;
   }
 
   const topProducts = itemStats.map((stat) => [stat.productName, stat._sum.quantity || 0] as const);
@@ -178,7 +180,7 @@ export default async function ReportPage({
               </div>
               <p className="text-xs font-bold text-[#8E6D53]">Gross Revenue</p>
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(todayGrossRevenue)}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(grossRevenue)}</h3>
             <p className="text-xs text-[#8E6D53] mt-1">Total incoming sales</p>
           </div>
 
@@ -189,7 +191,7 @@ export default async function ReportPage({
               </div>
               <p className="text-xs font-bold text-[#8E6D53]">Total COGS</p>
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(todayCogs)}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(totalCogs)}</h3>
             <p className="text-xs text-[#8E6D53] mt-1">Cost of goods sold</p>
           </div>
 
@@ -200,7 +202,7 @@ export default async function ReportPage({
               </div>
               <p className="text-xs font-bold text-[#8E6D53]">Operating Expenses</p>
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(todayApportionedOpex)}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(totalOpex)}</h3>
             <p className="text-xs text-[#8E6D53] mt-1">Expenses recorded in this period</p>
           </div>
 
@@ -215,7 +217,7 @@ export default async function ReportPage({
                 </div>
                 <p className="text-xs font-bold text-[#F3DBAA]">Net Profit</p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#FAF0DA] truncate">{formatRupiah(todayNetProfit)}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#FAF0DA] truncate">{formatRupiah(netProfit)}</h3>
               <p className="text-xs text-[#E5D5BC] mt-1">
                 {isThisShift
                   ? activeShift

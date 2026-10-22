@@ -22,10 +22,9 @@ export default async function InventoryPage({
   await connection();
   const resolvedParams = await searchParams;
   const q = resolvedParams.q?.trim() || '';
-  const page = parsePage(resolvedParams.page);
+  const rawPage = parsePage(resolvedParams.page);
   const filter = resolvedParams.filter || '';
   const take = 9;
-  const skip = (page - 1) * take;
 
   const whereClause: Prisma.ProductWhereInput = {
     isActive: true,
@@ -38,18 +37,11 @@ export default async function InventoryPage({
     whereClause.stock = { lte: LOW_STOCK_THRESHOLD };
   }
 
-  const [allProducts, products, totalProducts, logs] = await Promise.all([
+  const [allProducts, totalProducts, logs] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
       select: { id: true, name: true, stock: true },
-    }),
-    prisma.product.findMany({
-      where: whereClause,
-      orderBy: { name: 'asc' },
-      include: { type: true, variant: true },
-      take,
-      skip,
     }),
     prisma.product.count({ where: whereClause }),
     prisma.inventoryLog.findMany({
@@ -60,6 +52,16 @@ export default async function InventoryPage({
   ]);
 
   const totalPages = Math.ceil(totalProducts / take) || 1;
+  const page = Math.min(rawPage, totalPages);
+  const skip = (page - 1) * take;
+
+  const products = await prisma.product.findMany({
+    where: whereClause,
+    orderBy: { name: 'asc' },
+    include: { type: true, variant: true },
+    take,
+    skip,
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -77,7 +79,7 @@ export default async function InventoryPage({
           <h2 className="text-lg font-bold text-[#6B4227] flex items-center gap-3">
             Current Stock
             <Link
-              href={`/inventory?page=1${q ? `&q=${q}` : ''}${filter === 'low' ? '' : '&filter=low'}`}
+              href={`/inventory?page=1${q ? `&q=${encodeURIComponent(q)}` : ''}${filter === 'low' ? '' : '&filter=low'}`}
               className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
                 filter === 'low'
                   ? 'bg-[#F3DBAA] text-[#54311B] border-[#DFC082]'

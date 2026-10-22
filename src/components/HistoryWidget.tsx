@@ -75,7 +75,10 @@ export default function HistoryWidget({ logs }: { logs: StockLogItem[] }) {
                 sentence = `${log.receiver || 'Staff'} removed ${log.quantity} units of ${log.product.name}`;
                 badgeColor = 'bg-[#FEF6E7] text-[#9E7324] border border-[#F3DBAA]';
               } else {
-                sentence = `Stock of ${log.product.name} reset to ${log.quantity} units`;
+                const actor = log.giver || log.receiver;
+                sentence = actor
+                  ? `${actor} reset stock of ${log.product.name} to ${log.quantity} units`
+                  : `Stock of ${log.product.name} reset to ${log.quantity} units`;
                 badgeColor = 'bg-[#FAF5FF] text-[#7E22CE] border border-[#E9D5FF]';
               }
 

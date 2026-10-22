@@ -35,9 +35,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const url = request.nextUrl.clone();
+    const callbackTarget = `${pathname}${request.nextUrl.search}`;
     url.pathname = '/login';
     url.search = '';
-    if (pathname !== '/') url.searchParams.set('callbackUrl', pathname);
+    if (callbackTarget !== '/') url.searchParams.set('callbackUrl', callbackTarget);
     return NextResponse.redirect(url);
   }
 

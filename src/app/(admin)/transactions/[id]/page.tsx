@@ -58,7 +58,7 @@ export default async function TransactionDetail(props: {
               <h1 className="text-2xl font-bold text-[#6B4227] tracking-tight">Order {trxCode}</h1>
               <StatusBadge status={trx.status} />
             </div>
-            <p className="text-xs text-[#8E6D53] mt-0.5">{formatWibDateTime(trx.createdAt)} WIB</p>
+            <p className="text-xs text-[#8E6D53] mt-0.5">{formatWibDateTime(trx.createdAt)}</p>
           </div>
         </div>
 
@@ -195,7 +195,7 @@ export default async function TransactionDetail(props: {
                 <div>
                   <p className="text-[#8E6D53]">Cashier</p>
                   <p className="font-semibold text-[#3F2311] mt-0.5">
-                    {trx.cashierName || activeShift?.openedBy || '-'}
+                    {trx.cashierName || (trx.shiftId && trx.shiftId === activeShift?.id ? activeShift.openedBy : '-')}
                   </p>
                 </div>
                 <div>

@@ -23,7 +23,9 @@ export type ShiftMetadataRows = {
   openedBy: string;
   closedBy: string;
   initialCash: number;
+  expectedCash: number | string;
   actualCash: number | string;
+  discrepancy: number | string;
 };
 
 export async function buildTransactionsExcelBuffer(options: {
@@ -66,8 +68,9 @@ export async function buildTransactionsExcelBuffer(options: {
       Status: trx.status,
       'Payment Method': trx.paymentMethod || '-',
       Items: itemsStr,
-      'Gross Revenue': trx.amount,
-      COGS: trxCogs,
+      'Order Amount': trx.amount,
+      'Gross Revenue': isPaid ? trx.amount : 0,
+      COGS: isPaid ? trxCogs : 0,
       'Gross Profit': isPaid ? trxGrossProfit : 0,
     });
   }
@@ -82,7 +85,9 @@ export async function buildTransactionsExcelBuffer(options: {
     rows.push({ 'Transaction ID': 'Opened By:', Date: shiftMeta.openedBy });
     rows.push({ 'Transaction ID': 'Closed By:', Date: shiftMeta.closedBy });
     rows.push({ 'Transaction ID': 'Initial Cash:', Date: shiftMeta.initialCash });
+    rows.push({ 'Transaction ID': 'Expected Cash:', Date: shiftMeta.expectedCash });
     rows.push({ 'Transaction ID': 'Actual Cash:', Date: shiftMeta.actualCash });
+    rows.push({ 'Transaction ID': 'Discrepancy:', Date: shiftMeta.discrepancy });
     rows.push({});
   }
 
@@ -113,6 +118,7 @@ export async function buildTransactionsExcelBuffer(options: {
     { wch: 16 }, // Status
     { wch: 16 }, // Payment Method
     { wch: 42 }, // Items
+    { wch: 15 }, // Order Amount
     { wch: 15 }, // Gross Revenue
     { wch: 15 }, // COGS
     { wch: 15 }, // Gross Profit

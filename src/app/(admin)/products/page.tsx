@@ -18,12 +18,11 @@ export default async function ProductsPage({
 }) {
   const resolvedParams = await searchParams;
 
-  const page = parsePage(resolvedParams.page);
+  const rawPage = parsePage(resolvedParams.page);
   const sort = typeof resolvedParams.sort === 'string' ? resolvedParams.sort : 'priorities';
   const q = typeof resolvedParams.q === 'string' ? resolvedParams.q.trim() : '';
 
   const take = 10;
-  const skip = (page - 1) * take;
 
   const where: Prisma.ProductWhereInput = {
     isActive: true,
@@ -42,23 +41,25 @@ export default async function ProductsPage({
   let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = [
     { priority: 'desc' },
     { createdAt: 'desc' },
+    { id: 'desc' },
   ];
 
-  if (sort === 'newest') orderBy = { createdAt: 'desc' };
-  if (sort === 'oldest') orderBy = { createdAt: 'asc' };
+  if (sort === 'newest') orderBy = [{ createdAt: 'desc' }, { id: 'desc' }];
+  if (sort === 'oldest') orderBy = [{ createdAt: 'asc' }, { id: 'asc' }];
 
-  const [totalItems, products] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      orderBy,
-      take,
-      skip,
-      include: { type: true, variant: true, images: true },
-    }),
-  ]);
-
+  const totalItems = await prisma.product.count({ where });
   const totalPages = Math.ceil(totalItems / take) || 1;
+  const page = Math.min(rawPage, totalPages);
+  const skip = (page - 1) * take;
+
+  const products = await prisma.product.findMany({
+    where,
+    orderBy,
+    take,
+    skip,
+    include: { type: true, variant: true, images: true },
+  });
+
   const canReorder = sort === 'priorities' && !q;
 
   return (

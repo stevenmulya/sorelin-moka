@@ -160,17 +160,27 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
   const removeFromCart = (productId: number) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === productId);
-      if (existing && existing.quantity > 1) {
-        return prev.map((item) =>
-          item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
-        );
+      const next =
+        existing && existing.quantity > 1
+          ? prev.map((item) =>
+              item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
+            )
+          : prev.filter((item) => item.product.id !== productId);
+      if (next.length === 0 && step === 'checkout') {
+        setStep('menu');
       }
-      return prev.filter((item) => item.product.id !== productId);
+      return next;
     });
   };
 
   const deleteFromCart = (productId: number) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+    setCart((prev) => {
+      const next = prev.filter((item) => item.product.id !== productId);
+      if (next.length === 0 && step === 'checkout') {
+        setStep('menu');
+      }
+      return next;
+    });
   };
 
   const stopTracks = useCallback(() => {
@@ -320,6 +330,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
         setStep('success');
       } else {
         setError(res.error || 'Failed to submit order. Please try again.');
+        router.refresh();
       }
     } catch {
       setError('A network or system error occurred. Please try again.');
@@ -348,7 +359,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
   // Inactivity auto-reset (60s idle timeout to protect customer data)
   useEffect(() => {
-    if (step === 'start') return;
+    if (step === 'start' || loading) return;
     if (step === 'success') {
       const timer = setTimeout(() => {
         resetFlow();
@@ -372,7 +383,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
       clearTimeout(timeoutId);
       events.forEach((ev) => window.removeEventListener(ev, resetTimer));
     };
-  }, [step, resetFlow]);
+  }, [step, loading, resetFlow]);
 
   // =========================================================================
   // 1. START SCREEN
@@ -1034,8 +1045,9 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
             <button
               type="button"
-              onClick={() => setStep('biodata')}
-              className="w-full py-2.5 bg-[#6B4227] text-[#FAF0DA] hover:bg-[#54311B] border-2 border-[#6B4227] rounded-sm font-handwriting text-base font-bold uppercase tracking-wider transition-all duration-150 ease-out shadow-[3px_3px_0px_#6B4227] hover:translate-x-[1.5px] hover:translate-y-[1.5px] hover:shadow-[1.5px_1.5px_0px_#6B4227] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+              disabled={cart.length === 0}
+              onClick={() => cart.length > 0 && setStep('biodata')}
+              className="w-full py-2.5 bg-[#6B4227] text-[#FAF0DA] hover:bg-[#54311B] border-2 border-[#6B4227] rounded-sm font-handwriting text-base font-bold uppercase tracking-wider transition-all duration-150 ease-out shadow-[3px_3px_0px_#6B4227] hover:translate-x-[1.5px] hover:translate-y-[1.5px] hover:shadow-[1.5px_1.5px_0px_#6B4227] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:opacity-40 cursor-pointer"
             >
               Continue to Details
             </button>

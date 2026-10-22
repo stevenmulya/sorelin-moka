@@ -30,7 +30,8 @@ export default async function ShiftsHistoryPage() {
               <tr>
                 <th className="px-5 py-3.5">Status</th>
                 <th className="px-5 py-3.5">Date & Time</th>
-                <th className="px-5 py-3.5">Opened By</th>
+                <th className="px-5 py-3.5">Cashier</th>
+                <th className="px-5 py-3.5 text-right">Expected Cash</th>
                 <th className="px-5 py-3.5 text-right">Actual Cash</th>
                 <th className="px-5 py-3.5 text-right">Discrepancy</th>
                 <th className="px-5 py-3.5 text-right">Action</th>
@@ -39,7 +40,7 @@ export default async function ShiftsHistoryPage() {
             <tbody className="divide-y divide-[#E5D5BC]/60">
               {allShifts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-[#8E6D53]">
+                  <td colSpan={7} className="px-6 py-12 text-center text-[#8E6D53]">
                     No shifts found.
                   </td>
                 </tr>
@@ -69,7 +70,12 @@ export default async function ShiftsHistoryPage() {
                           {formatWibTime(s.startTime)} - {s.endTime ? formatWibTime(s.endTime) : 'Now'}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 font-semibold text-[#3F2311]">{s.openedBy}</td>
+                      <td className="px-5 py-3.5 font-semibold text-[#3F2311]">
+                        {isClosed ? `${s.openedBy} → ${s.closedBy ?? '-'}` : s.openedBy}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-[#8E6D53]">
+                        {isClosed ? formatRupiah(expected) : '-'}
+                      </td>
                       <td className="px-5 py-3.5 text-right font-bold text-[#6B4227]">
                         {isClosed ? formatRupiah(actual) : '-'}
                       </td>

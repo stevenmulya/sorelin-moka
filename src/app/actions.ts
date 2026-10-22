@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { authenticate, destroySession, requireAdmin, requireAnyRole } from '@/lib/auth'
-import { STATUS } from '@/lib/constants'
+import { STATUS, MAX_WAITING_ORDERS } from '@/lib/constants'
 import { generateTrxCode } from '@/lib/utils'
 import { UserError, cleanStr, parseInteger, requireInteger, toUserMessage } from '@/lib/validation'
 import {
@@ -98,6 +98,9 @@ export async function approvePayment(formData: FormData): Promise<ActionResult> 
   revalidatePath('/inventory')
   revalidatePath('/products')
   revalidatePath('/shift')
+  revalidatePath('/orders')
+  revalidatePath('/report')
+  revalidatePath('/customers')
   revalidatePath('/kiosk')
   revalidatePath('/')
   redirect(`/transactions/${id}?print=true`)
@@ -106,21 +109,24 @@ export async function approvePayment(formData: FormData): Promise<ActionResult> 
 export async function cancelTransaction(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
 
+  let id: number
   try {
-    const id = requireInteger(formData.get('transactionId') as string, 'Transaction ID', { min: 1 })
+    id = requireInteger(formData.get('transactionId') as string, 'Transaction ID', { min: 1 })
     await cancelOrderService({ transactionId: id, reason: String(formData.get('cancelReason') ?? '') })
   } catch (e) {
     return fail(e)
   }
 
   revalidatePath('/transactions')
+  revalidatePath(`/transactions/${id}`)
   revalidatePath('/inventory')
   revalidatePath('/products')
   revalidatePath('/shift')
   revalidatePath('/orders')
+  revalidatePath('/report')
+  revalidatePath('/customers')
   revalidatePath('/kiosk')
   revalidatePath('/')
-  redirect('/transactions')
 }
 
 export async function editPaymentMethod(formData: FormData): Promise<ActionResult> {
@@ -141,6 +147,7 @@ export async function editPaymentMethod(formData: FormData): Promise<ActionResul
   revalidatePath('/transactions')
   revalidatePath(`/transactions/${id}`)
   revalidatePath('/shift')
+  revalidatePath('/report')
   revalidatePath('/')
 }
 
@@ -383,6 +390,8 @@ export async function closeShift(formData: FormData): Promise<ActionResult> {
   revalidatePath('/shifts')
   revalidatePath('/transactions')
   revalidatePath('/orders')
+  revalidatePath('/report')
+  revalidatePath('/customers')
   revalidatePath('/kiosk')
   revalidatePath('/')
   redirect('/shift')
@@ -403,8 +412,6 @@ export async function logoutAction() {
 }
 
 // ============================ KIOSK ============================
-
-const MAX_WAITING_ORDERS = 30
 
 export async function submitKioskOrder(data: {
   customerName: string

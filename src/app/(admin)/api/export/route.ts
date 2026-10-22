@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { resolveRange, formatWibDate } from '@/lib/dates';
 import { buildTransactionsExcelBuffer } from '@/lib/excel';
+import { getActiveShift } from '@/lib/services/shifts';
 
 export async function GET(request: Request) {
   try {
@@ -16,10 +17,7 @@ export async function GET(request: Request) {
   const endParam = searchParams.get('end');
   const presetParam = searchParams.get('preset') || 'this_shift';
 
-  const activeShift = await prisma.shift.findFirst({
-    where: { status: 'Open' },
-    orderBy: { startTime: 'desc' },
-  });
+  const activeShift = await getActiveShift();
 
   const range = resolveRange(
     { preset: presetParam, start: startParam, end: endParam },
@@ -57,16 +55,18 @@ export async function GET(request: Request) {
 
   const rangeOpex = expenseAgg._sum.amount ?? 0;
 
-  const dateStartStr = formatWibDate(range.start);
-  const dateEndStr = formatWibDate(range.end);
+  const dateStartStr = range.startStr || formatWibDate(new Date());
+  const dateEndStr = range.endStr || formatWibDate(new Date());
   const rangeDisplayStr =
     isThisShift
       ? activeShift
         ? `Shift #${activeShift.id} (${dateStartStr})`
         : 'No Active Shift'
-      : dateStartStr === dateEndStr
-        ? dateStartStr
-        : `${dateStartStr} - ${dateEndStr}`;
+      : range.preset === 'all'
+        ? 'All Time'
+        : dateStartStr === dateEndStr
+          ? dateStartStr
+          : `${dateStartStr} - ${dateEndStr}`;
 
   const buf = await buildTransactionsExcelBuffer({
     transactions,
@@ -75,7 +75,10 @@ export async function GET(request: Request) {
     periodLabel: rangeDisplayStr,
   });
 
-  const filename = `transactions_${dateStartStr}_to_${dateEndStr}.xlsx`;
+  const filename =
+    range.preset === 'all'
+      ? `transactions_all_time_${formatWibDate(new Date())}.xlsx`
+      : `transactions_${dateStartStr}_to_${dateEndStr}.xlsx`;
 
   return new NextResponse(new Uint8Array(buf), {
     status: 200,

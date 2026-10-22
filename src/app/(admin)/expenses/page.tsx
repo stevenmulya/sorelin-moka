@@ -1,20 +1,21 @@
 import { connection } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { Banknote, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Banknote, Plus, Trash2 } from 'lucide-react';
 import { createExpense, deleteExpense } from '@/app/actions';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';
+import Pagination from '@/components/Pagination';
 import { getActiveShift } from '@/lib/services/shifts';
 import { formatWibDate } from '@/lib/dates';
 import { formatRupiah } from '@/lib/utils';
-import Link from 'next/link';
+import { parsePage } from '@/lib/validation';
 
 // @next-codemod-ignore Cache Components adoption: this segment temporarily allows blocking.
 // Remove this opt-out after verifying the segment passes validation without it.
 // See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
 export const instant = false;
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 export default async function ExpensesPage({
   searchParams,
@@ -24,8 +25,7 @@ export default async function ExpensesPage({
   await connection();
   const resolvedParams = await searchParams;
   const view = typeof resolvedParams.view === 'string' ? resolvedParams.view : 'shift';
-  const rawPage = typeof resolvedParams.page === 'string' ? parseInt(resolvedParams.page, 10) : 1;
-  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const rawPage = parsePage(resolvedParams.page);
 
   const where: Prisma.ExpenseWhereInput = {};
   if (view === 'shift') {
@@ -33,16 +33,15 @@ export default async function ExpensesPage({
     where.shiftId = activeShift ? activeShift.id : -1;
   }
 
-  const [totalCount, activeExpenses] = await Promise.all([
-    prisma.expense.count({ where }),
-    prisma.expense.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      ...(view === 'all' ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
-    }),
-  ]);
-
+  const totalCount = await prisma.expense.count({ where });
   const totalPages = view === 'all' ? Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) : 1;
+  const page = Math.min(rawPage, totalPages);
+
+  const activeExpenses = await prisma.expense.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    ...(view === 'all' ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -88,7 +87,7 @@ export default async function ExpensesPage({
               type="text"
               name="name"
               required
-              maxLength={120}
+              maxLength={100}
               placeholder="e.g. Ice, Gas, Milk, Rent, Internet"
               className="w-full px-3.5 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227]"
             />
@@ -186,30 +185,15 @@ export default async function ExpensesPage({
           </table>
         </div>
 
-        {view === 'all' && totalPages > 1 && (
-          <div className="px-5 py-4 border-t border-[#E5D5BC] bg-[#FAF0DA]/60 flex items-center justify-between text-xs text-[#8E6D53]">
-            <span>
-              Page <strong className="text-[#6B4227]">{page}</strong> of <strong className="text-[#6B4227]">{totalPages}</strong> ({totalCount} total)
-            </span>
-            <div className="flex items-center gap-2">
-              {page > 1 && (
-                <Link
-                  href={`/expenses?view=all&page=${page - 1}`}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg font-semibold text-[#6B4227] hover:bg-[#FAF0DA] transition-colors"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Previous
-                </Link>
-              )}
-              {page < totalPages && (
-                <Link
-                  href={`/expenses?view=all&page=${page + 1}`}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg font-semibold text-[#6B4227] hover:bg-[#FAF0DA] transition-colors"
-                >
-                  Next <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              )}
-            </div>
-          </div>
+        {view === 'all' && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            basePath="/expenses"
+            params={{ view: 'all' }}
+            totalItems={totalCount}
+            pageSize={PAGE_SIZE}
+          />
         )}
       </div>
     </div>

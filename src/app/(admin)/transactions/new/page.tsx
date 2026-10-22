@@ -15,8 +15,8 @@ export default async function NewTransactionPage() {
   const [products, activeShift] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true },
-      orderBy: { name: 'asc' },
-      include: { images: { take: 1 }, type: true },
+      orderBy: [{ priority: 'desc' }, { name: 'asc' }],
+      include: { images: { take: 1 }, type: true, variant: true },
     }),
     getActiveShift(),
   ]);

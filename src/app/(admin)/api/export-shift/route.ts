@@ -50,6 +50,11 @@ export async function GET(request: Request) {
     durationStr = `${hrs}h ${mins}m`;
   }
 
+  const expectedCash = shift.expectedCash !== null ? shift.expectedCash : '-';
+  const actualCash = shift.actualCash !== null ? shift.actualCash : '-';
+  const discrepancy =
+    shift.actualCash !== null && shift.expectedCash !== null ? shift.actualCash - shift.expectedCash : '-';
+
   const buf = await buildTransactionsExcelBuffer({
     transactions: shift.transactions,
     totalExpenses: shiftOpex,
@@ -61,7 +66,9 @@ export async function GET(request: Request) {
       openedBy: shift.openedBy,
       closedBy: shift.closedBy || '-',
       initialCash: shift.initialCash,
-      actualCash: shift.actualCash !== null ? shift.actualCash : '-',
+      expectedCash,
+      actualCash,
+      discrepancy,
     },
   });
 

@@ -105,6 +105,12 @@ export function parseProductForm(fd: FormData): ProductInput {
 }
 
 export async function createProductService(input: ProductInput, imageUrls: string[]) {
+  const maxPriority = await prisma.product.aggregate({
+    where: { isActive: true },
+    _max: { priority: true },
+  });
+  const nextPriority = (maxPriority._max.priority ?? 0) + 1;
+
   return prisma.product.create({
     data: {
       name: input.name,
@@ -115,6 +121,7 @@ export async function createProductService(input: ProductInput, imageUrls: strin
       price: input.price,
       discountPrice: input.discountPrice,
       stock: 0,
+      priority: nextPriority,
       images: { create: imageUrls.map((url) => ({ url })) },
     },
   });

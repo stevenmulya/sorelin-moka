@@ -14,6 +14,7 @@ type Product = {
   discountPrice?: number | null;
   stock: number;
   type?: { name: string } | null;
+  variant?: { name: string } | null;
   images?: Array<{ url: string }> | null;
 };
 
@@ -153,12 +154,13 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                     <div className="flex items-center justify-between gap-1 mb-2">
                       <span className="text-[10px] font-bold text-[#8E6D53] uppercase tracking-wider truncate max-w-[120px]">
                         {product.type?.name || 'General'}
+                        {product.variant?.name ? ` • ${product.variant.name}` : ''}
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           isOutOfStock
                             ? 'bg-[#FEF2F2] text-red-700 border border-[#FECACA]'
-                            : remainingStock < LOW_STOCK_THRESHOLD
+                            : remainingStock <= LOW_STOCK_THRESHOLD
                               ? 'bg-[#F3DBAA]/60 text-[#6B4227] border border-[#E5D5BC]'
                               : 'bg-[#F0FDF4] text-emerald-700 border border-[#DCFCE7]'
                         }`}

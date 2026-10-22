@@ -59,6 +59,22 @@ const RECEIPT_CSS = `
   .bp-center {
     text-align: center;
   }
+  .bp-logo-wrap {
+    width: 100%;
+    text-align: center;
+    margin: 0 auto 3px auto;
+  }
+  .bp-logo-img {
+    display: block;
+    width: 28mm;
+    max-width: 28mm;
+    height: auto;
+    margin: 0 auto;
+    image-rendering: pixelated;
+  }
+  .bp-logo-raw {
+    filter: grayscale(100%) contrast(230%) brightness(115%);
+  }
   .bp-store-name {
     font-size: 13px;
     font-weight: 900;
@@ -247,10 +263,94 @@ function createDitheredDataUrl(src: string, targetWidth = 240): Promise<string> 
   });
 }
 
+/**
+ * Convert the Sorelin Secondary Lockup logo (which has a #FAF0DA cream background
+ * and #6B4227 brown illustration) into a pure black-on-white 1-bit thermal bitmap
+ * so Blueprint Lite 58 prints zero background dots and sharp mascot/text details.
+ */
+function createThermalLogoDataUrl(src: string, targetWidth = 260): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const w = targetWidth;
+        const h = Math.max(1, Math.round((img.height / img.width) * w));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(src);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+        const lum = new Float32Array(w * h);
+
+        for (let i = 0; i < w * h; i++) {
+          const idx = i * 4;
+          const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+          // Knock out cream background & light face fill (>= 202) to pure white (255),
+          // and map the brown illustration/text to high-contrast dark values.
+          if (gray >= 202) {
+            lum[i] = 255;
+          } else {
+            lum[i] = Math.max(0, Math.min(255, ((gray - 85) / (202 - 85)) * 255));
+          }
+        }
+
+        // Atkinson dithering preserves the hand-drawn crayon texture of the mascot
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const i = y * w + x;
+            const oldPixel = lum[i];
+            const newPixel = oldPixel < 140 ? 0 : 255;
+            lum[i] = newPixel;
+            const err = (oldPixel - newPixel) / 8;
+
+            if (x + 1 < w) lum[i + 1] += err;
+            if (x + 2 < w) lum[i + 2] += err;
+            if (y + 1 < h) {
+              if (x - 1 >= 0) lum[(y + 1) * w + (x - 1)] += err;
+              lum[(y + 1) * w + x] += err;
+              if (x + 1 < w) lum[(y + 1) * w + (x + 1)] += err;
+            }
+            if (y + 2 < h) {
+              lum[(y + 2) * w + x] += err;
+            }
+          }
+        }
+
+        for (let i = 0; i < w * h; i++) {
+          const v = lum[i] < 128 ? 0 : 255;
+          const idx = i * 4;
+          data[idx] = v;
+          data[idx + 1] = v;
+          data[idx + 2] = v;
+          data[idx + 3] = 255;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve(src);
+      }
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+}
+
 export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintReceiptTrx; autoPrint?: boolean }) {
   const [isOpen, setIsOpen] = useState(Boolean(autoPrint));
   const [includePhoto, setIncludePhoto] = useState(Boolean(trx.selfieUrl));
   const [ditheredSelfie, setDitheredSelfie] = useState<string | null>(null);
+  const [thermalLogo, setThermalLogo] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -259,6 +359,9 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
 
   useEffect(() => {
     let active = true;
+    createThermalLogoDataUrl('/sorelin-lockup-secondary.png').then((url) => {
+      if (active) setThermalLogo(url);
+    });
     if (trx.selfieUrl) {
       createDitheredDataUrl(trx.selfieUrl).then((url) => {
         if (active) setDitheredSelfie(url);
@@ -378,6 +481,7 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
   }, [autoPrint, router, pathname, trx.id, handlePrint]);
 
   const photoSrc = ditheredSelfie || trx.selfieUrl;
+  const logoSrc = thermalLogo || '/sorelin-lockup-secondary.png';
 
   return (
     <>
@@ -429,8 +533,15 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
                 id="printable-receipt"
                 className="bp-receipt shadow-md border border-black flex-shrink-0"
               >
-                {/* Store Branding */}
-                <div className="bp-store-name">SORELIN BAKERY</div>
+                {/* Store Branding (Sorelin Secondary Lockup + Subtitle) */}
+                <div className="bp-logo-wrap">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logoSrc}
+                    alt="Sorelin Bakery"
+                    className={`bp-logo-img${thermalLogo ? '' : ' bp-logo-raw'}`}
+                  />
+                </div>
                 <div className="bp-store-sub">FRESHLY BAKED SALTBREAD</div>
                 <div className="bp-divider" />
 
@@ -525,7 +636,8 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
                 {/* Footer Message */}
                 <div className="bp-footer">
                   Thank you for your visit!<br />
-                  Instagram: @sorelin.id
+                  Instagram: @sorelin.bakery<br />
+                  WhatsApp: 082240491826
                 </div>
               </div>
 

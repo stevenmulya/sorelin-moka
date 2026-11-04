@@ -700,7 +700,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                       : 'bg-[#FAF0DA] text-[#6B4227] hover:bg-[#6B4227]/10 hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px]'
                   }`}
                 >
-                  📦 Bundle
+                  Bundle
                 </button>
               )}
             </div>
@@ -807,7 +807,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                               <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 items-start">
                                 {product.isBundle && (
                                   <span className="font-handwriting font-bold text-[10px] sm:text-[11px] px-1.5 py-0.5 border-1.5 border-[#6B4227] bg-[#FAF0DA] text-[#6B4227] rounded-sm shadow-[1px_1px_0px_#6B4227]">
-                                    📦 Bundle
+                                    Bundle
                                   </span>
                                 )}
                                 {Boolean(product.availableVariants) && !product.isBundle && (
@@ -1267,7 +1267,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
                     {item.isBundle && item.bundleContents && (
                       <div className="mt-1 text-xs font-handwriting text-[#6B4227] font-semibold bg-[#6B4227]/10 p-1.5 rounded-xs border border-[#6B4227]/30">
-                        📦 Bundle: {item.bundleContents}
+                        Bundle: {item.bundleContents}
                       </div>
                     )}
 

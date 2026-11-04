@@ -360,14 +360,10 @@ export default function ItemCustomizerModal({
         {/* Header */}
         <div className="p-4 border-b border-[#E5D5BC] bg-[#FAF0DA]/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {isBundle ? (
-              <Package className="h-5 w-5 text-[#C88A32]" strokeWidth={1.5} />
-            ) : (
-              <Sparkles className="h-5 w-5 text-[#C88A32]" strokeWidth={1.5} />
-            )}
+            <Sparkles className="h-5 w-5 text-[#C88A32]" strokeWidth={1.5} />
             <div>
               <h3 className="font-semibold text-sm text-[#3F2311] leading-tight">
-                {isBundle ? `Customize Bundle: ${product.name}` : `Customize: ${product.name}`}
+                {isBundle ? `Customize: ${product.name}` : `Customize: ${product.name}`}
               </h3>
               <p className="text-[11px] text-[#8E6D53]">
                 {isBundle

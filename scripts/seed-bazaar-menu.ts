@@ -1,16 +1,10 @@
 import { prisma } from '../src/lib/prisma';
 import { serializeBundleConfig } from '../src/lib/bundle-config';
 
-async function seedBazaarMenu() {
-  console.log('🌱 Setting up Sorelin 5-Day Bazaar Menu...');
+export async function seedBazaarMenu() {
+  console.log('🌱 Setting up Sorelin 5-Day Bazaar Menu (Clean & Deduplicated)...');
 
-  // 1. Deactivate old demo / scratch products
-  await prisma.product.updateMany({
-    data: { isActive: false },
-  });
-  console.log('✅ Archived previous scratch/demo products.');
-
-  // 2. Ensure Categories: Saltbread & Beverage
+  // 1. Ensure Categories: Saltbread & Beverage
   const catSaltbread = await prisma.productType.upsert({
     where: { name: 'Saltbread' },
     update: {},
@@ -23,177 +17,228 @@ async function seedBazaarMenu() {
     create: { name: 'Beverage' },
   });
 
-  console.log(`✅ Verified categories: "${catSaltbread.name}" and "${catBeverage.name}"`);
+  console.log(`✅ Verified categories: "${catSaltbread.name}" (ID: ${catSaltbread.id}) & "${catBeverage.name}" (ID: ${catBeverage.id})`);
 
-  // 3. Insert the 6 Saltbread Products (Range 18k - 26k)
-  const saltbreads = [
+  // 2. Define the exact 6 Saltbread Products (Range 18k - 24k)
+  const saltbreadItems = [
     {
-      name: 'Original Sea Saltbread',
+      name: 'Salt Bread Original',
       typeId: catSaltbread.id,
       price: 18000,
       costPrice: 7000,
       stock: 60,
+      priority: 10,
       isBestSeller: true,
       isFavorite: true,
       description: 'Classic artisanal Korean saltbread with French butter and flaky sea salt crystals.',
     },
     {
-      name: 'Garlic Butter Saltbread',
+      name: 'Salt Bread Garlic Butter',
       typeId: catSaltbread.id,
       price: 20000,
-      costPrice: 8000,
+      costPrice: 7000,
       stock: 45,
+      priority: 9,
       isBestSeller: true,
       description: 'Infused with roasted garlic butter and parsley for a savory aroma.',
     },
     {
-      name: 'Double Cheese Melt Saltbread',
+      name: 'Salt Bread Kinako Ogura Mochi',
       typeId: catSaltbread.id,
       price: 22000,
-      costPrice: 9000,
-      stock: 45,
-      isFavorite: true,
-      description: 'Stuffed with sharp cheddar and mozzarella for the ultimate cheese pull.',
-    },
-    {
-      name: 'Dark Chocolate Melt Saltbread',
-      typeId: catSaltbread.id,
-      price: 22000,
-      costPrice: 9000,
+      costPrice: 7000,
       stock: 40,
-      description: 'Filled with rich Belgian 70% dark chocolate that melts when warmed.',
+      priority: 8,
+      description: 'Filled with sweet red bean (ogura) and chewy mochi, dusted with fragrant kinako.',
     },
     {
-      name: 'Truffle Mushroom Saltbread',
+      name: 'Salt Bread Double Cheese Honey',
+      typeId: catSaltbread.id,
+      price: 23000,
+      costPrice: 7000,
+      stock: 45,
+      priority: 7,
+      isFavorite: true,
+      description: 'Stuffed with melted cheddar and mozzarella, drizzled with pure floral honey.',
+    },
+    {
+      name: 'Salt Bread Double Chocolate',
+      typeId: catSaltbread.id,
+      price: 23000,
+      costPrice: 7000,
+      stock: 40,
+      priority: 6,
+      description: 'Filled with rich Belgian dark chocolate that melts when warmed.',
+    },
+    {
+      name: 'Salt Bread Smoked Ham and Cheese',
       typeId: catSaltbread.id,
       price: 24000,
-      costPrice: 10000,
+      costPrice: 7000,
       stock: 35,
-      description: 'Sautéed champignon mushrooms with white truffle oil and sea salt.',
-    },
-    {
-      name: 'Truffle Ham & Cheese Saltbread',
-      typeId: catSaltbread.id,
-      price: 26000,
-      costPrice: 11000,
-      stock: 35,
+      priority: 5,
       isBestSeller: true,
-      isFavorite: true,
-      description: 'Savory smoked ham, melted mozzarella, and fragrant truffle glaze.',
+      description: 'Savory smoked ham, melted mozzarella, and fragrant glaze.',
     },
   ];
 
-  for (const s of saltbreads) {
-    const p = await prisma.product.create({
-      data: { ...s, isActive: true },
-    });
-    console.log(`   🍞 [Saltbread] ${p.name} - Rp ${p.price.toLocaleString('id-ID')} (Stock: ${p.stock})`);
-  }
-
-  // 4. Insert the 2 Beverages (15k each)
-  const beverages = [
+  // 3. Define the exact 2 Beverage Products (15k each)
+  const beverageItems = [
     {
-      name: 'Thai Tea',
+      name: 'Thai Milk Tea',
       typeId: catBeverage.id,
       price: 15000,
-      costPrice: 5000,
+      costPrice: 7000,
       stock: 60,
+      priority: 10,
       isBestSeller: true,
       description: 'Authentic brewed Thai tea with sweet condensed milk over ice.',
     },
     {
-      name: 'Thai Lemonade',
+      name: 'Thai Tea Honey Lemon',
       typeId: catBeverage.id,
       price: 15000,
-      costPrice: 5000,
+      costPrice: 7000,
       stock: 60,
+      priority: 9,
       isFavorite: true,
-      description: 'Refreshing iced lemonade with Thai lime juice and lemongrass hints.',
+      description: 'Refreshing iced tea with natural honey and fresh squeezed lemon.',
     },
   ];
 
-  for (const b of beverages) {
-    const p = await prisma.product.create({
-      data: { ...b, isActive: true },
-    });
-    console.log(`   🥤 [Beverage] ${p.name} - Rp ${p.price.toLocaleString('id-ID')} (Stock: ${p.stock})`);
-  }
-
-  // 5. Insert Universal Bundles (stock = 0, dynamic inventory!)
-  const bundle2S1B = serializeBundleConfig({
+  // 4. Define Bundle A & Bundle B configurations
+  const bundleAConfig = serializeBundleConfig({
     slots: [
-      { id: 'slot-saltbread', type: 'CATEGORY', categoryName: 'Saltbread', quota: 2 },
-      { id: 'slot-beverage', type: 'CATEGORY', categoryName: 'Beverage', quota: 1 },
+      { id: 'slot-saltbread-a', type: 'CATEGORY', categoryName: 'Saltbread', quota: 2 },
+      { id: 'slot-beverage-a', type: 'CATEGORY', categoryName: 'Beverage', quota: 1 },
     ],
   });
 
-  const bundleBox3 = serializeBundleConfig({
+  const bundleBConfig = serializeBundleConfig({
     slots: [
-      { id: 'slot-saltbread-3', type: 'CATEGORY', categoryName: 'Saltbread', quota: 3 },
+      { id: 'slot-saltbread-b', type: 'CATEGORY', categoryName: 'Saltbread', quota: 5 },
+      { id: 'slot-beverage-b', type: 'CATEGORY', categoryName: 'Beverage', quota: 3 },
     ],
   });
 
-  const bundleBox6 = serializeBundleConfig({
-    slots: [
-      { id: 'slot-saltbread-6', type: 'CATEGORY', categoryName: 'Saltbread', quota: 6 },
-    ],
-  });
-
-  const bundles = [
+  const bundleItems = [
     {
-      name: 'Bundle 2 Saltbread + 1 Beverage',
-      price: 45000, // Termurah: 18k + 18k + 15k = 51k -> Paket Hemat 45k
-      costPrice: 19000,
-      stock: 0,
-      isBundle: true,
-      bundleQuota: 3,
-      availableVariants: bundle2S1B,
-      isBestSeller: true,
-      description: 'Paket combo hemat: Bebas pilih 2 Saltbread + 1 Minuman dingin favoritmu!',
-    },
-    {
-      name: 'Box of 3 Saltbread (Hemat)',
-      price: 50000, // Termurah: 18k * 3 = 54k -> Paket Hemat 50k
+      name: 'Bundle A (2 Saltbread + 1 Beverage)',
+      price: 45000, // Base price (hemat dari 18+18+15 = 51k)
       costPrice: 21000,
       stock: 0,
       isBundle: true,
       bundleQuota: 3,
-      availableVariants: bundleBox3,
-      description: 'Kotak isi 3 Saltbread pilihanmu dengan kemasan gift box cantik.',
+      priority: 10,
+      availableVariants: bundleAConfig,
+      isBestSeller: true,
+      description: 'Paket combo hemat: Bebas pilih 2 Saltbread + 1 Minuman dingin favoritmu!',
     },
     {
-      name: 'Box of 6 Family Pack (Super Hemat)',
-      price: 99000, // Termurah: 18k * 6 = 108k -> Paket Hemat 99k
-      costPrice: 42000,
+      name: 'Bundle B (5 Saltbread + 3 Beverage)',
+      price: 115000, // Base price (hemat dari 18*5 + 15*3 = 135k)
+      costPrice: 56000,
       stock: 0,
       isBundle: true,
-      bundleQuota: 6,
-      availableVariants: bundleBox6,
+      bundleQuota: 8,
+      priority: 9,
+      availableVariants: bundleBConfig,
       isFavorite: true,
-      description: 'Paket keluarga isi 6 Saltbread pilihan dengan kemasan exclusive box Sorelin.',
+      description: 'Paket pesta combo hemat: Bebas pilih 5 Saltbread + 3 Minuman dingin segar!',
     },
   ];
 
-  for (const b of bundles) {
-    const p = await prisma.product.create({
-      data: { ...b, isActive: true },
+  // 5. Deactivate ALL existing products first to guarantee zero ghost duplicates
+  await prisma.product.updateMany({
+    data: { isActive: false },
+  });
+
+  // 6. Idempotent Upsert for Saltbread
+  for (const item of saltbreadItems) {
+    const existing = await prisma.product.findFirst({
+      where: { name: item.name },
+      orderBy: { id: 'asc' },
     });
-    console.log(`   📦 [Bundle] ${p.name} - Rp ${p.price.toLocaleString('id-ID')} (Base: 45k, Stock: Dynamic)`);
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { ...item, isActive: true },
+      });
+      console.log(`   🍞 [Saltbread Updated] ${item.name} - Rp ${item.price} (Stock: ${item.stock})`);
+    } else {
+      await prisma.product.create({
+        data: { ...item, isActive: true },
+      });
+      console.log(`   🍞 [Saltbread Created] ${item.name} - Rp ${item.price} (Stock: ${item.stock})`);
+    }
   }
 
-  console.log('\n✨ Sorelin Bazaar Catalog Successfully Seeded!');
-  console.log('Categories visible on Kiosk:');
-  console.log('1. All');
-  console.log('2. Saltbread (6 varieties)');
-  console.log('3. Beverage (2 varieties)');
-  console.log('4. 📦 Bundle (3 package combos with dynamic stock & tier upcharges)');
+  // 7. Idempotent Upsert for Beverages
+  for (const item of beverageItems) {
+    const existing = await prisma.product.findFirst({
+      where: { name: item.name },
+      orderBy: { id: 'asc' },
+    });
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { ...item, isActive: true },
+      });
+      console.log(`   🥤 [Beverage Updated] ${item.name} - Rp ${item.price} (Stock: ${item.stock})`);
+    } else {
+      await prisma.product.create({
+        data: { ...item, isActive: true },
+      });
+      console.log(`   🥤 [Beverage Created] ${item.name} - Rp ${item.price} (Stock: ${item.stock})`);
+    }
+  }
+
+  // 8. Idempotent Upsert for Bundle A & Bundle B
+  for (const item of bundleItems) {
+    const existing = await prisma.product.findFirst({
+      where: { name: item.name },
+      orderBy: { id: 'asc' },
+    });
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { ...item, isActive: true },
+      });
+      console.log(`   📦 [Bundle Updated] ${item.name} - Rp ${item.price} (Stock: 0/Dynamic)`);
+    } else {
+      await prisma.product.create({
+        data: { ...item, isActive: true },
+      });
+      console.log(`   📦 [Bundle Created] ${item.name} - Rp ${item.price} (Stock: 0/Dynamic)`);
+    }
+  }
+
+  // 9. Extra safety: Archive any other product that is active but not in this official 10-item catalog
+  const officialNames = [
+    ...saltbreadItems.map((i) => i.name),
+    ...beverageItems.map((i) => i.name),
+    ...bundleItems.map((i) => i.name),
+  ];
+  await prisma.product.updateMany({
+    where: {
+      name: { notIn: officialNames },
+      isActive: true,
+    },
+    data: { isActive: false },
+  });
+
+  const activeCount = await prisma.product.count({ where: { isActive: true } });
+  console.log(`\n🎉 Bazaar catalog successfully seeded! Total active products: ${activeCount} (Expected: 10, zero duplicates).`);
 }
 
-seedBazaarMenu()
-  .catch((e) => {
-    console.error('❌ Error seeding menu:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Allow direct CLI execution
+if (require.main === module) {
+  seedBazaarMenu()
+    .catch((err) => {
+      console.error('❌ Seeder failed:', err);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

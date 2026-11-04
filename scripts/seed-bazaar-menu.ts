@@ -2,7 +2,7 @@ import { prisma } from '../src/lib/prisma';
 import { serializeBundleConfig } from '../src/lib/bundle-config';
 
 async function seedBazaarMenu() {
-  console.log('🌱 Setting up Sorelin 5-Day Bazaar Menu...');
+  console.log('🌱 Setting up Sorelin 5-Day Bazaar Menu (Official User Menu)...');
 
   // 1. Deactivate old demo / scratch products
   await prisma.product.updateMany({
@@ -23,12 +23,12 @@ async function seedBazaarMenu() {
     create: { name: 'Beverage' },
   });
 
-  console.log(`✅ Verified categories: "${catSaltbread.name}" and "${catBeverage.name}"`);
+  console.log(`✅ Verified categories: "${catSaltbread.name}" (ID: ${catSaltbread.id}) & "${catBeverage.name}" (ID: ${catBeverage.id})`);
 
-  // 3. Insert the 6 Saltbread Products (Range 18k - 26k)
+  // 3. Insert the exact 6 Saltbread Products (Range 18k - 24k, modal 7.000)
   const saltbreads = [
     {
-      name: 'Original Sea Saltbread',
+      name: 'Salt Bread Original',
       typeId: catSaltbread.id,
       price: 18000,
       costPrice: 7000,
@@ -38,48 +38,47 @@ async function seedBazaarMenu() {
       description: 'Classic artisanal Korean saltbread with French butter and flaky sea salt crystals.',
     },
     {
-      name: 'Garlic Butter Saltbread',
+      name: 'Salt Bread Garlic Butter',
       typeId: catSaltbread.id,
       price: 20000,
-      costPrice: 8000,
+      costPrice: 7000,
       stock: 45,
       isBestSeller: true,
       description: 'Infused with roasted garlic butter and parsley for a savory aroma.',
     },
     {
-      name: 'Double Cheese Melt Saltbread',
+      name: 'Salt Bread Kinako Ogura Mochi',
       typeId: catSaltbread.id,
       price: 22000,
-      costPrice: 9000,
+      costPrice: 7000,
+      stock: 40,
+      description: 'Filled with sweet red bean (ogura) and chewy mochi, dusted with fragrant kinako.',
+    },
+    {
+      name: 'Salt Bread Double Cheese Honey',
+      typeId: catSaltbread.id,
+      price: 23000,
+      costPrice: 7000,
       stock: 45,
       isFavorite: true,
-      description: 'Stuffed with sharp cheddar and mozzarella for the ultimate cheese pull.',
+      description: 'Stuffed with melted cheddar and mozzarella, drizzled with pure floral honey.',
     },
     {
-      name: 'Dark Chocolate Melt Saltbread',
+      name: 'Salt Bread Double Chocolate',
       typeId: catSaltbread.id,
-      price: 22000,
-      costPrice: 9000,
+      price: 23000,
+      costPrice: 7000,
       stock: 40,
-      description: 'Filled with rich Belgian 70% dark chocolate that melts when warmed.',
+      description: 'Filled with rich Belgian dark chocolate that melts when warmed.',
     },
     {
-      name: 'Truffle Mushroom Saltbread',
+      name: 'Salt Bread Smoked Ham and Cheese',
       typeId: catSaltbread.id,
       price: 24000,
-      costPrice: 10000,
-      stock: 35,
-      description: 'Sautéed champignon mushrooms with white truffle oil and sea salt.',
-    },
-    {
-      name: 'Truffle Ham & Cheese Saltbread',
-      typeId: catSaltbread.id,
-      price: 26000,
-      costPrice: 11000,
+      costPrice: 7000,
       stock: 35,
       isBestSeller: true,
-      isFavorite: true,
-      description: 'Savory smoked ham, melted mozzarella, and fragrant truffle glaze.',
+      description: 'Savory smoked ham, melted mozzarella, and fragrant glaze.',
     },
   ];
 
@@ -90,25 +89,25 @@ async function seedBazaarMenu() {
     console.log(`   🍞 [Saltbread] ${p.name} - Rp ${p.price.toLocaleString('id-ID')} (Stock: ${p.stock})`);
   }
 
-  // 4. Insert the 2 Beverages (15k each)
+  // 4. Insert the 2 Beverages (15k each, modal 7.000)
   const beverages = [
     {
-      name: 'Thai Tea',
+      name: 'Thai Milk Tea',
       typeId: catBeverage.id,
       price: 15000,
-      costPrice: 5000,
+      costPrice: 7000,
       stock: 60,
       isBestSeller: true,
       description: 'Authentic brewed Thai tea with sweet condensed milk over ice.',
     },
     {
-      name: 'Thai Lemonade',
+      name: 'Thai Tea Honey Lemon',
       typeId: catBeverage.id,
       price: 15000,
-      costPrice: 5000,
+      costPrice: 7000,
       stock: 60,
       isFavorite: true,
-      description: 'Refreshing iced lemonade with Thai lime juice and lemongrass hints.',
+      description: 'Refreshing iced Thai tea with pure honey and fresh lemon juice.',
     },
   ];
 
@@ -143,7 +142,7 @@ async function seedBazaarMenu() {
     {
       name: 'Bundle 2 Saltbread + 1 Beverage',
       price: 45000, // Termurah: 18k + 18k + 15k = 51k -> Paket Hemat 45k
-      costPrice: 19000,
+      costPrice: 21000,
       stock: 0,
       isBundle: true,
       bundleQuota: 3,
@@ -178,15 +177,10 @@ async function seedBazaarMenu() {
     const p = await prisma.product.create({
       data: { ...b, isActive: true },
     });
-    console.log(`   📦 [Bundle] ${p.name} - Rp ${p.price.toLocaleString('id-ID')} (Base: 45k, Stock: Dynamic)`);
+    console.log(`   📦 [Bundle] ${p.name} - Rp ${p.price.toLocaleString('id-ID')} (Stock: Dynamic)`);
   }
 
-  console.log('\n✨ Sorelin Bazaar Catalog Successfully Seeded!');
-  console.log('Categories visible on Kiosk:');
-  console.log('1. All');
-  console.log('2. Saltbread (6 varieties)');
-  console.log('3. Beverage (2 varieties)');
-  console.log('4. 📦 Bundle (3 package combos with dynamic stock & tier upcharges)');
+  console.log('\n✨ Sorelin Bazaar Catalog Successfully Seeded with User Menu!');
 }
 
 seedBazaarMenu()

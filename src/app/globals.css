@@ -2,7 +2,6 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --color-border: #E5D5BC;
   --color-sorelin-cream: #FAF0DA;
   --color-sorelin-brown: #6B4227;
@@ -14,22 +13,6 @@
   --color-sorelin-border: #E5D5BC;
   --color-sorelin-border-light: #F2E6CF;
   --color-sorelin-muted: #8E6D53;
-}
-
-@layer base {
-  html {
-    font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    letter-spacing: -0.012em;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  body {
-    background-color: #FAF0DA;
-    color: #3F2311;
-    font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    letter-spacing: -0.012em;
-  }
 }
 
 @utility font-handwriting {

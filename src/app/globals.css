@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Gaegu:wght@400;700&family=Patrick+Hand&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Patrick+Hand&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -13,6 +13,13 @@
   --color-sorelin-border: #E5D5BC;
   --color-sorelin-border-light: #F2E6CF;
   --color-sorelin-muted: #8E6D53;
+}
+
+@layer base {
+  body {
+    background-color: #FAF0DA;
+    color: #3F2311;
+  }
 }
 
 @utility font-handwriting {

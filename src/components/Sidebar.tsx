@@ -21,8 +21,6 @@ import {
   PlusCircle,
   Layers,
   FolderTree,
-  Settings,
-  Trash2,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/actions";
@@ -30,13 +28,13 @@ import { logoutAction } from "@/app/actions";
 interface SubItem {
   name: string;
   href: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 interface MenuGroup {
   id: string;
   name: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: React.ComponentType<{ className?: string }>;
   items: SubItem[];
 }
 
@@ -78,9 +76,6 @@ function isItemActive(pathname: string, itemHref: string): boolean {
   if (itemHref === '/orders') {
     return pathname.startsWith('/orders');
   }
-  if (itemHref === '/reset') {
-    return pathname.startsWith('/reset');
-  }
   return false;
 }
 
@@ -116,7 +111,7 @@ export default function Sidebar() {
       items: [
         { name: 'Products', href: '/products', icon: Package },
         { name: 'Bundles & Packages', href: '/bundles', icon: Layers },
-        { name: 'Master Categories', href: '/categories', icon: FolderTree },
+        { name: 'Categories', href: '/categories', icon: FolderTree },
         { name: 'Stock Inventory', href: '/inventory', icon: ClipboardList },
       ],
     },
@@ -129,17 +124,14 @@ export default function Sidebar() {
         { name: 'Customers', href: '/customers', icon: Users },
       ],
     },
-    {
-      id: 'system',
-      name: 'System',
-      icon: Settings,
-      items: [
-        { name: 'System Reset', href: '/reset', icon: Trash2 },
-      ],
-    },
   ];
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    orders: true,
+    shifts: true,
+    inventory: true,
+    reports: true,
+  });
 
   const toggleGroup = (groupId: string) => {
     setOpenGroups((prev) => ({
@@ -158,7 +150,7 @@ export default function Sidebar() {
         className="md:hidden fixed top-3 left-4 z-50 p-2 bg-[#FFFDF8] rounded-xl border border-[#E5D5BC] shadow-xs text-[#6B4227] hover:bg-[#FAF0DA] transition-colors cursor-pointer"
         aria-label="Open Menu"
       >
-        <Menu className="h-5 w-5" strokeWidth={1.5} />
+        <Menu className="h-5 w-5" />
       </button>
 
       {/* Mobile Backdrop */}
@@ -190,7 +182,7 @@ export default function Sidebar() {
             className="md:hidden p-1.5 text-[#FAF0DA]/80 hover:text-[#FAF0DA] hover:bg-[#54311B] rounded-lg transition-colors cursor-pointer"
             aria-label="Close Menu"
           >
-            <X className="h-5 w-5" strokeWidth={1.5} />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -199,7 +191,6 @@ export default function Sidebar() {
           {/* Top Level: Dashboard */}
           <Link
             href="/"
-            prefetch={false}
             onClick={() => setIsOpen(false)}
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               isDashboardActive
@@ -207,7 +198,7 @@ export default function Sidebar() {
                 : 'text-[#6B4227] hover:bg-[#FAF0DA] hover:text-[#3F2311]'
             }`}
           >
-            <LayoutDashboard className={`h-4 w-4 ${isDashboardActive ? 'text-[#F3DBAA]' : 'text-[#8E6D53]'}`} strokeWidth={1.5} />
+            <LayoutDashboard className={`h-4 w-4 ${isDashboardActive ? 'text-[#F3DBAA]' : 'text-[#8E6D53]'}`} />
             <span>Dashboard</span>
           </Link>
 
@@ -215,7 +206,7 @@ export default function Sidebar() {
           <div className="space-y-1.5 pt-1">
             {groups.map((group) => {
               const GroupIcon = group.icon;
-              const isGroupOpen = openGroups[group.id] ?? false;
+              const isGroupOpen = openGroups[group.id] ?? true;
               const hasActiveChild = group.items.some((item) => isItemActive(pathname, item.href));
 
               return (
@@ -223,21 +214,20 @@ export default function Sidebar() {
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
                       hasActiveChild
                         ? 'text-[#3F2311] bg-[#FAF0DA]'
                         : 'text-[#8E6D53] hover:text-[#3F2311] hover:bg-[#FAF0DA]/60'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <GroupIcon className={`h-4 w-4 ${hasActiveChild ? 'text-[#C88A32]' : 'text-[#8E6D53]'}`} strokeWidth={1.5} />
+                      <GroupIcon className={`h-4 w-4 ${hasActiveChild ? 'text-[#C88A32]' : 'text-[#8E6D53]'}`} />
                       <span>{group.name}</span>
                     </div>
                     <ChevronDown
                       className={`h-3.5 w-3.5 transition-transform duration-200 ${
                         hasActiveChild ? 'text-[#6B4227]' : 'text-[#8E6D53]'
                       } ${isGroupOpen ? 'rotate-180' : ''}`}
-                      strokeWidth={1.5}
                     />
                   </button>
 
@@ -251,7 +241,6 @@ export default function Sidebar() {
                           <Link
                             key={item.href}
                             href={item.href}
-                            prefetch={false}
                             onClick={() => setIsOpen(false)}
                             className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                               active
@@ -259,7 +248,7 @@ export default function Sidebar() {
                                 : 'text-[#6B4227] hover:bg-[#FAF0DA] hover:text-[#3F2311] font-medium'
                             }`}
                           >
-                            <ItemIcon className={`h-3.5 w-3.5 ${active ? 'text-[#F3DBAA]' : 'text-[#8E6D53]'}`} strokeWidth={1.5} />
+                            <ItemIcon className={`h-3.5 w-3.5 ${active ? 'text-[#F3DBAA]' : 'text-[#8E6D53]'}`} />
                             <span>{item.name}</span>
                           </Link>
                         );
@@ -277,29 +266,16 @@ export default function Sidebar() {
           <Link
             href="/kiosk"
             target="_blank"
-            className="w-full flex items-center justify-center py-2 bg-[#FAF0DA] text-[#6B4227] hover:bg-[#F2E6CF] border border-[#E5D5BC] rounded-xl font-semibold text-xs transition-colors shadow-2xs cursor-pointer text-center"
+            className="w-full flex items-center justify-center py-2.5 bg-[#FAF0DA] text-[#6B4227] hover:bg-[#F2E6CF] border border-[#E5D5BC] rounded-xl font-semibold text-xs transition-colors shadow-xs cursor-pointer text-center"
           >
             <span>Self-Order Kiosk ↗</span>
-          </Link>
-          <Link
-            href="/reset"
-            prefetch={false}
-            onClick={() => setIsOpen(false)}
-            className={`w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl font-semibold text-xs transition-colors shadow-2xs cursor-pointer text-center ${
-              pathname === '/reset'
-                ? 'bg-[#8E2818] text-[#FAF0DA] border border-[#782214]'
-                : 'bg-[#FAF0DA] text-[#6B4227] hover:bg-[#F2E6CF] hover:text-[#3F2311] border border-[#E5D5BC]'
-            }`}
-          >
-            <Trash2 className={`h-3.5 w-3.5 shrink-0 ${pathname === '/reset' ? 'text-[#FAF0DA]' : 'text-[#8E4A38]'}`} />
-            <span>System Reset & Storage</span>
           </Link>
           <form action={logoutAction}>
             <button
               type="submit"
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl font-semibold text-xs transition-colors text-left cursor-pointer"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl font-semibold text-xs transition-colors text-left cursor-pointer"
             >
-              <LogOut className="h-4 w-4" strokeWidth={1.5} />
+              <LogOut className="h-4 w-4" />
               <span>Sign Out</span>
             </button>
           </form>

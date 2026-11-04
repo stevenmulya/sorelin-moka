@@ -28,7 +28,7 @@ export default async function OrdersPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <AutoRefresh seconds={10} />
+      <AutoRefresh seconds={15} />
 
       <div>
         <h1 className="text-2xl font-bold text-[#6B4227] tracking-tight">Active Orders (Kitchen)</h1>
@@ -78,10 +78,25 @@ export default async function OrdersPage() {
                 {order.items && order.items.length > 0 ? (
                   <ul className="space-y-2">
                     {order.items.map((item) => (
-                      <li key={item.id} className="flex justify-between items-start text-sm">
-                        <div>
+                      <li key={item.id} className="flex justify-between items-start text-sm border-b border-[#E5D5BC]/30 pb-1.5 last:border-b-0 last:pb-0">
+                        <div className="flex-1">
                           <span className="font-bold text-[#6B4227] mr-2">{item.quantity}x</span>
                           <span className="text-[#3F2311] font-medium">{item.productName}</span>
+                          {item.selectedVariant && (
+                            <span className="ml-2 inline-block px-1.5 py-0.5 text-xs font-semibold bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] rounded-sm">
+                              Flavor: {item.selectedVariant}
+                            </span>
+                          )}
+                          {item.isBundle && item.bundleContents && (
+                            <div className="ml-6 text-xs text-[#6B4227] bg-[#FAF0DA]/70 p-1 rounded-sm border border-[#E5D5BC] mt-1 font-medium">
+                              📦 Bundle: {item.bundleContents}
+                            </div>
+                          )}
+                          {item.notes && (
+                            <div className="ml-6 text-xs italic text-[#8E6D53] mt-0.5">
+                              Note: &ldquo;{item.notes}&rdquo;
+                            </div>
+                          )}
                         </div>
                       </li>
                     ))}

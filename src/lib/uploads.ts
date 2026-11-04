@@ -75,19 +75,25 @@ async function ensureDir() {
 }
 
 async function writeUniqueOrDataUrl(prefix: string, kind: Detected, buf: Buffer): Promise<string> {
-  // For customer selfies, or when using Turso Cloud DB / running on Vercel serverless,
-  // store validated images as canonical Data URLs so they are instantly accessible across all devices.
-  if (prefix === 'selfie_' || process.env.VERCEL || process.env.TURSO_DATABASE_URL) {
-    return `data:${kind.mime};base64,${buf.toString('base64')}`;
+  // Always prefer storing uploaded files on local disk so the database only holds a lightweight URL string ('/uploads/<name>').
+  // This prevents SQLite/Turso from bloating with multi-megabyte base64 strings that choke network and query performance.
+  const isServerless = Boolean(
+    process.env.VERCEL ||
+    process.env.NETLIFY ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.USE_DATA_URLS === 'true'
+  );
+  if (!isServerless) {
+    try {
+      await ensureDir();
+      const name = `${prefix}${randomUUID()}.${kind.ext}`;
+      await fs.writeFile(path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, name), buf, { flag: 'wx' });
+      return `/uploads/${name}`;
+    } catch {
+      // Fallback only if local filesystem is read-only
+    }
   }
-  try {
-    await ensureDir();
-    const name = `${prefix}${randomUUID()}.${kind.ext}`;
-    await fs.writeFile(path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, name), buf, { flag: 'wx' });
-    return `/uploads/${name}`;
-  } catch {
-    return `data:${kind.mime};base64,${buf.toString('base64')}`;
-  }
+  return `data:${kind.mime};base64,${buf.toString('base64')}`;
 }
 
 /** Validate and save a product image. Returns an internal URL or validated Data URL. */
@@ -129,5 +135,24 @@ export async function deleteUpload(url: string | null | undefined): Promise<void
     await fs.unlink(full);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') console.error('Failed to delete upload file', e);
+  }
+}
+
+/** Clean all customer selfie files from the uploads directory while preserving product images. */
+export async function deleteAllSelfieUploads(): Promise<number> {
+  try {
+    const files = await fs.readdir(UPLOAD_DIR);
+    let count = 0;
+    for (const f of files) {
+      if (f.startsWith('selfie_')) {
+        try {
+          await fs.unlink(path.join(UPLOAD_DIR, f));
+          count++;
+        } catch {}
+      }
+    }
+    return count;
+  } catch {
+    return 0;
   }
 }

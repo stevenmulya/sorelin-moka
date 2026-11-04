@@ -108,6 +108,8 @@ export default async function ShiftsHistoryPage() {
           </table>
         </div>
       </div>
+
+      
     </div>
   );
 }

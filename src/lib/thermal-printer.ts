@@ -11,6 +11,10 @@ export interface ThermalPrintItem {
   productName: string;
   quantity: number;
   price: number;
+  selectedVariant?: string | null;
+  isBundle?: boolean;
+  bundleContents?: string | null;
+  notes?: string | null;
 }
 
 export interface ThermalPrintTrx {
@@ -191,7 +195,7 @@ async function resolveWritableCharacteristic(
   }
 
   throw new Error(
-    'Tidak ditemukan karakteristik tulis (Write GATT) pada perangkat Bluetooth ini. Pastikan perangkat yang dipilih adalah printer Blueprint Lite 58.'
+    'Could not find a write characteristic (Write GATT) on this Bluetooth device. Please ensure the selected device is a Blueprint Lite 58 printer.'
   );
 }
 
@@ -231,8 +235,8 @@ export async function connectBluetoothPrinter(
   if (!nav.bluetooth) {
     throw new Error(
       isIOSDevice()
-        ? 'Browser Safari/Chrome di iOS memblokir Web Bluetooth. Gunakan aplikasi browser gratis "Bluefy" di App Store untuk cetak Bluetooth langsung dari iPhone/iPad.'
-        : 'Browser ini tidak mendukung Web Bluetooth. Gunakan Google Chrome atau Microsoft Edge.'
+        ? 'Safari and Chrome on iOS block Web Bluetooth. Please use the free "Bluefy" browser app from the App Store to print via Bluetooth on iPhone/iPad.'
+        : 'This browser does not support Web Bluetooth. Please use Google Chrome or Microsoft Edge.'
     );
   }
 
@@ -267,7 +271,7 @@ export async function connectBluetoothPrinter(
   });
 
   if (!device.gatt) {
-    throw new Error('Perangkat Bluetooth tidak mendukung GATT Server.');
+    throw new Error('Bluetooth device does not support GATT Server.');
   }
 
   device.addEventListener?.('gattserverdisconnected', () => {
@@ -325,7 +329,7 @@ async function writeSingleBleChunk(
     return;
   }
 
-  throw new Error('Karakteristik Bluetooth tidak mendukung penulisan data.');
+  throw new Error('Bluetooth characteristic does not support data writing.');
 }
 
 /**
@@ -420,7 +424,9 @@ async function imageToEscPosRasterBands(
 ): Promise<number[]> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (!src.startsWith('data:')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
       try {
         // Width must be a multiple of 8 for byte-aligned GS v 0 raster rows
@@ -607,6 +613,27 @@ export async function buildEscPosReceipt(
       bytes.push(...encodeLine(line));
     }
     bytes.push(0x1b, 0x45, 0x00); // Bold Off
+
+    // Print flavor variant line if available
+    if (item.selectedVariant) {
+      for (const line of wrapText(`  * Flavor: ${item.selectedVariant}`, LINE_WIDTH)) {
+        bytes.push(...encodeLine(line));
+      }
+    }
+
+    // Print bundle package contents if available
+    if (item.isBundle && item.bundleContents) {
+      for (const line of wrapText(`  * Bundle: ${item.bundleContents}`, LINE_WIDTH)) {
+        bytes.push(...encodeLine(line));
+      }
+    }
+
+    // Print customer notes if available
+    if (item.notes) {
+      for (const line of wrapText(`  * Note: ${item.notes}`, LINE_WIDTH)) {
+        bytes.push(...encodeLine(line));
+      }
+    }
 
     const leftCalc = `${item.quantity} x ${formatRupiah(item.price)}`;
     const rightTotal = formatRupiah(item.price * item.quantity);

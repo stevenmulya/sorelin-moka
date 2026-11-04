@@ -17,9 +17,17 @@ export interface ProductRow {
   priority?: number | null;
   isBestSeller?: boolean | null;
   isFavorite?: boolean | null;
+  isBundle?: boolean;
   type?: { name: string } | null;
   variant?: { name: string } | null;
   images?: Array<{ url: string }> | null;
+  variants?: Array<{
+    id: number;
+    name: string;
+    price: number;
+    stock: number;
+    bundleUpcharge: number;
+  }> | null;
 }
 
 export default function ProductTableBody({
@@ -102,8 +110,8 @@ export default function ProductTableBody({
         >
           <td className="px-5 py-3.5">
             <div className="flex items-center gap-3">
-              <GripVertical className={`h-4 w-4 ${canReorder ? 'text-[#8E6D53]' : 'text-[#E5D5BC]'}`} />
-              <span className="text-[#6B4227] font-bold text-center">{product.priority ?? 0}</span>
+              <GripVertical className={`h-4 w-4 ${canReorder ? 'text-[#8E6D53]' : 'text-[#E5D5BC]'}`} strokeWidth={1.5} />
+              <span className="text-[#6B4227] font-semibold text-center">{product.priority ?? 0}</span>
             </div>
           </td>
           <td className="px-5 py-3.5">
@@ -139,11 +147,11 @@ export default function ProductTableBody({
           <td className="px-5 py-3.5">
             {product.discountPrice ? (
               <div>
-                <div className="text-[#6B4227] font-bold">{formatRupiah(product.discountPrice)}</div>
+                <div className="text-[#6B4227] font-semibold">{formatRupiah(product.discountPrice)}</div>
                 <div className="text-xs text-[#8E6D53] mt-0.5 line-through">{formatRupiah(product.price)}</div>
               </div>
             ) : (
-              <div className="text-[#6B4227] font-bold">{formatRupiah(product.price)}</div>
+              <div className="text-[#6B4227] font-semibold">{formatRupiah(product.price)}</div>
             )}
             <div className="text-xs text-[#8E6D53] mt-0.5">Cost: {formatRupiah(product.costPrice)}</div>
           </td>
@@ -161,7 +169,7 @@ export default function ProductTableBody({
                   }`}
                   title="Best Seller"
                 >
-                  <Star className={`h-4 w-4 ${product.isBestSeller ? 'fill-[#C88A32] text-[#C88A32]' : ''}`} />
+                  <Star className={`h-4 w-4 ${product.isBestSeller ? 'fill-[#C88A32] text-[#C88A32]' : ''}`} strokeWidth={1.5} />
                 </SubmitButton>
               </ActionForm>
               <ActionForm action={toggleFavorite}>
@@ -176,7 +184,7 @@ export default function ProductTableBody({
                   }`}
                   title="Favorite"
                 >
-                  <Heart className={`h-4 w-4 ${product.isFavorite ? 'fill-pink-500 text-pink-500' : ''}`} />
+                  <Heart className={`h-4 w-4 ${product.isFavorite ? 'fill-pink-500 text-pink-500' : ''}`} strokeWidth={1.5} />
                 </SubmitButton>
               </ActionForm>
             </div>
@@ -187,11 +195,11 @@ export default function ProductTableBody({
               onClick={(e) => e.stopPropagation()}
             >
               <Link
-                href={`/products/${product.id}/edit`}
+                href={product.isBundle ? `/bundles/${product.id}/edit` : `/products/${product.id}/edit`}
                 className="p-1.5 text-[#8E6D53] hover:text-[#6B4227] hover:bg-[#FAF0DA] rounded-lg transition-colors"
-                title="Edit Product"
+                title={product.isBundle ? "Edit Bundle" : "Edit Product"}
               >
-                <Edit2 className="h-4 w-4" />
+                <Edit2 className="h-4 w-4" strokeWidth={1.5} />
               </Link>
               <ActionForm action={deleteProduct} confirmMessage="Are you sure you want to archive this product?">
                 <input type="hidden" name="id" value={product.id} />
@@ -200,7 +208,7 @@ export default function ProductTableBody({
                   className="p-1.5 text-[#8E6D53] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="Archive Product"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                 </SubmitButton>
               </ActionForm>
             </div>

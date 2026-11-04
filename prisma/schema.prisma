@@ -42,6 +42,14 @@ model Product {
   discountPrice Int?
   stock        Int      @default(0)
   priority     Int      @default(0)
+
+  // Varian rasa & Bundling
+  availableVariants String? // Comma-separated rasa (e.g. "Original, Garlic Butter, Cheese Melt")
+  isBundle          Boolean  @default(false)
+  bundleQuota       Int?     // Kuota item per paket bundle (e.g. 3 atau 6)
+
+  variants          ProductVariantOption[]
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -131,17 +139,45 @@ model Transaction {
 }
 
 model TransactionItem {
-  id            Int      @id @default(autoincrement())
-  transactionId Int
-  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  productId     Int?
-  productName   String
-  quantity      Int
-  price         Int
-  costPrice     Int      @default(0)
+  id              Int         @id @default(autoincrement())
+  transactionId   Int
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId       Int?
+  productName     String
+  quantity        Int
+  price           Int
+  costPrice       Int         @default(0)
+
+  // Varian rasa, paket bundling, dan catatan
+  variantOptionId Int?
+  variantOption   ProductVariantOption? @relation(fields: [variantOptionId], references: [id], onDelete: SetNull)
+  selectedVariant String?     // Rasa terpilih untuk single item
+  isBundle        Boolean     @default(false)
+  bundleContents  String?     // Rincian rasa paket bundling
+  notes           String?     // Catatan khusus
 
   @@index([transactionId])
   @@index([productId])
+  @@index([variantOptionId])
+}
+
+model ProductVariantOption {
+  id             Int       @id @default(autoincrement())
+  productId      Int
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name           String    // e.g. "Original Sea Salt", "Garlic Butter", "Truffle Ham & Cheese"
+  price          Int       // Price when purchased as a single item
+  costPrice      Int       @default(0) // COGS / HPP
+  stock          Int       @default(0) // Physical tray stock
+  bundleUpcharge Int       @default(0) // Extra surcharge when chosen in a box bundle
+  priority       Int       @default(0)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transactionItems TransactionItem[]
+
+  @@index([productId, isActive])
 }
 
 model ProductImage {

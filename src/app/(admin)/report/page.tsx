@@ -8,6 +8,7 @@ import {
   Banknote,
   CalendarDays,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { connection } from 'next/server';
 import DateFilter from '@/components/DateFilter';
@@ -15,6 +16,7 @@ import { resolveRange, wibHour } from '@/lib/dates';
 import { getActiveShift } from '@/lib/services/shifts';
 import { PAID_STATUSES } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
+import { parseBundleFlavors } from '@/lib/services/orders';
 
 // @next-codemod-ignore Cache Components adoption: this segment temporarily allows blocking.
 // Remove this opt-out after verifying the segment passes validation without it.
@@ -74,7 +76,14 @@ export default async function ReportPage({
       where: {
         transaction: trxWhere,
       },
-      select: { quantity: true, costPrice: true },
+      select: {
+        quantity: true,
+        costPrice: true,
+        productName: true,
+        selectedVariant: true,
+        isBundle: true,
+        bundleContents: true,
+      },
     }),
     prisma.transaction.findMany({
       where: trxWhere,
@@ -98,13 +107,36 @@ export default async function ReportPage({
     }),
   ]);
 
-  // 1. FINANCE CALCULATIONS (Aggregated directly)
+  // 1. FINANCE CALCULATIONS & FLAVOR CONSUMPTION
   const grossRevenue = revenueSum._sum.amount || 0;
   const totalOpex = expenseSum._sum.amount || 0;
   let totalCogs = 0;
+  const flavorSalesMap = new Map<string, number>();
+
   for (const item of cogsItems) {
     totalCogs += item.quantity * item.costPrice;
+
+    if (item.selectedVariant) {
+      flavorSalesMap.set(
+        item.selectedVariant,
+        (flavorSalesMap.get(item.selectedVariant) || 0) + item.quantity
+      );
+    }
+
+    if (item.isBundle && item.bundleContents) {
+      const parsed = parseBundleFlavors(item.bundleContents);
+      for (const f of parsed) {
+        flavorSalesMap.set(
+          f.flavorName,
+          (flavorSalesMap.get(f.flavorName) || 0) + f.quantity * item.quantity
+        );
+      }
+    }
   }
+
+  const topFlavors = Array.from(flavorSalesMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
   const netProfit = grossRevenue - totalCogs - totalOpex;
 
@@ -206,7 +238,7 @@ export default async function ReportPage({
             <p className="text-xs text-[#8E6D53] mt-1">Expenses recorded in this period</p>
           </div>
 
-          <div className="bg-[#6B4227] rounded-2xl border border-[#54311B] p-5 shadow-xs relative overflow-hidden">
+          <div className={`${netProfit >= 0 ? 'bg-[#6B4227] border-[#54311B]' : 'bg-[#7F1D1D] border-[#991B1B]'} rounded-2xl border p-5 shadow-xs relative overflow-hidden transition-all`}>
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <TrendingUp className="h-16 w-16 text-white" />
             </div>
@@ -215,7 +247,9 @@ export default async function ReportPage({
                 <div className="p-2 bg-white/10 rounded-xl">
                   <TrendingUp className="h-4 w-4 text-[#F3DBAA]" />
                 </div>
-                <p className="text-xs font-bold text-[#F3DBAA]">Net Profit</p>
+                <p className="text-xs font-bold text-[#F3DBAA]">
+                  {netProfit >= 0 ? 'Net Profit' : 'Net Loss (Deficit)'}
+                </p>
               </div>
               <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#FAF0DA] truncate">{formatRupiah(netProfit)}</h3>
               <p className="text-xs text-[#E5D5BC] mt-1">
@@ -275,46 +309,93 @@ export default async function ReportPage({
         </div>
       </div>
 
-      {/* BEST SELLERS SECTION */}
-      <div className="pt-2">
-        <h2 className="text-base font-bold text-[#6B4227] mb-3.5">Product Analytics</h2>
-        <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-4 sm:p-5 border-b border-[#E5D5BC] bg-[#FAF0DA]/60">
-            <h2 className="text-sm font-bold text-[#6B4227] flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-700" />
-              Top Selling Items
-            </h2>
-          </div>
-          <div className="p-4 sm:p-6">
-            {topProducts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
-                {topProducts.map(([name, qty], index) => (
-                  <div key={name} className="flex items-center justify-between p-3.5 sm:p-4 bg-[#FAF0DA] rounded-xl border border-[#E5D5BC] gap-3">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div
-                        className={`h-7 w-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-xs ${
-                          index === 0
-                            ? 'bg-[#F3DBAA] text-[#54311B] border border-[#DFC082]'
-                            : index === 1
-                              ? 'bg-[#E5D5BC] text-[#6B4227] border border-[#D5C1A1]'
-                              : index === 2
-                                ? 'bg-[#F2E6CF] text-[#6B4227] border border-[#E5D5BC]'
+      {/* PRODUCT & FLAVOR ANALYTICS */}
+      <div className="pt-2 space-y-6">
+        <h2 className="text-base font-bold text-[#6B4227]">Product & Flavor Analytics</h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Products */}
+          <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl overflow-hidden shadow-xs">
+            <div className="p-4 sm:p-5 border-b border-[#E5D5BC] bg-[#FAF0DA]/60">
+              <h3 className="text-sm font-bold text-[#6B4227] flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-emerald-700" />
+                Top Selling Catalog Products
+              </h3>
+            </div>
+            <div className="p-4 sm:p-6">
+              {topProducts.length > 0 ? (
+                <div className="space-y-3">
+                  {topProducts.map(([name, qty], index) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between p-3 bg-[#FAF0DA] rounded-xl border border-[#E5D5BC] gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className={`h-6 w-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-xs ${
+                            index === 0
+                              ? 'bg-[#F3DBAA] text-[#54311B] border border-[#DFC082]'
+                              : index === 1
+                                ? 'bg-[#E5D5BC] text-[#6B4227] border border-[#D5C1A1]'
                                 : 'bg-[#FFFDF8] text-[#8E6D53] border border-[#E5D5BC]'
-                        }`}
-                      >
-                        {index + 1}
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                        <span className="text-xs font-semibold text-[#3F2311] truncate">{name}</span>
                       </div>
-                      <span className="text-sm font-semibold text-[#3F2311] truncate">{name}</span>
+                      <span className="text-xs font-bold text-emerald-800 whitespace-nowrap flex-shrink-0">
+                        {qty} <span className="font-normal text-[#8E6D53] text-[11px]">sold</span>
+                      </span>
                     </div>
-                    <span className="text-sm font-bold text-emerald-800 whitespace-nowrap flex-shrink-0">
-                      {qty} <span className="font-semibold text-[#8E6D53] text-xs">sold</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center text-sm text-[#8E6D53] py-8">No sales data found for the selected period.</div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-xs text-[#8E6D53] py-8">No product sales in this period.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Top Saltbread Flavors (Single + Bundled) */}
+          <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl overflow-hidden shadow-xs">
+            <div className="p-4 sm:p-5 border-b border-[#E5D5BC] bg-[#FAF0DA]/60">
+              <h3 className="text-sm font-bold text-[#6B4227] flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[#C88A32]" />
+                Top Flavors Baked & Consumed (Single + Bundles)
+              </h3>
+            </div>
+            <div className="p-4 sm:p-6">
+              {topFlavors.length > 0 ? (
+                <div className="space-y-3">
+                  {topFlavors.map(([flavorName, qty], index) => (
+                    <div
+                      key={flavorName}
+                      className="flex items-center justify-between p-3 bg-[#FAF0DA] rounded-xl border border-[#E5D5BC] gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className={`h-6 w-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-xs ${
+                            index === 0
+                              ? 'bg-[#F3DBAA] text-[#54311B] border border-[#DFC082]'
+                              : index === 1
+                                ? 'bg-[#E5D5BC] text-[#6B4227] border border-[#D5C1A1]'
+                                : 'bg-[#FFFDF8] text-[#8E6D53] border border-[#E5D5BC]'
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                        <span className="text-xs font-bold text-[#3F2311] truncate">{flavorName}</span>
+                      </div>
+                      <span className="text-xs font-bold text-[#6B4227] whitespace-nowrap flex-shrink-0 bg-[#FFFDF8] px-2.5 py-1 rounded-md border border-[#E5D5BC]">
+                        {qty} <span className="font-normal text-[#8E6D53] text-[11px]">pcs baked</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-xs text-[#8E6D53] py-8">No flavor consumption recorded in this period.</div>
+              )}
+            </div>
           </div>
         </div>
       </div>

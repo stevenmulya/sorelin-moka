@@ -2,18 +2,32 @@ import { cache } from 'react';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { PAID_STATUSES, STATUS } from '@/lib/constants';
-import { UserError, cleanStr, requireInteger } from '@/lib/validation';
+import { UserError, cleanStr, requireInteger, parseInteger } from '@/lib/validation';
 import { formatRupiah } from '@/lib/utils';
 import type { Db } from '@/lib/services/orders';
 
+let cachedShiftRecord: { data: import('@prisma/client').Shift | null; expiresAt: number } | null = null;
+const SHIFT_CACHE_TTL_MS = 5000;
+
+export function invalidateShiftCache() {
+  cachedShiftRecord = null;
+}
+
 /**
- * Request-memoized active shift lookup so layouts and pages share a single query per render pass.
+ * Fast in-memory cached active shift lookup (5s TTL) so page navigation does not wait
+ * on redundant network roundtrips to the remote database. Invalidated on open/close shift.
  */
 export const getActiveShift = cache(async () => {
-  return prisma.shift.findFirst({
+  const now = performance.now();
+  if (cachedShiftRecord && cachedShiftRecord.expiresAt > now) {
+    return cachedShiftRecord.data;
+  }
+  const shift = await prisma.shift.findFirst({
     where: { status: 'Open' },
     orderBy: { startTime: 'desc' },
   });
+  cachedShiftRecord = { data: shift, expiresAt: now + SHIFT_CACHE_TTL_MS };
+  return shift;
 });
 
 export interface ShiftSummary {
@@ -26,8 +40,10 @@ export interface ShiftSummary {
   pendingCount: number;
   activeKitchenCount: number; // Orders still in Preparing or Ready for Pickup
   expenses: number; // Total operational expenses
-  cashExpenses: number; // Expenses paid in Cash from the register
-  nonCashExpenses: number; // Expenses paid via Bank Transfer or Owner Funds
+  cashExpenses: number; // Expenses recorded
+  nonCashExpenses: number;
+  netFlow: number; // Cash/financial flow: revenue - expenses (can be negative)
+  netProfit: number; // Net profit: revenue - cogs - expenses (can be negative)
 }
 
 /**
@@ -59,6 +75,8 @@ export async function summarizeShift(db: Db | typeof prisma, shiftId: number): P
     expenses: totalExp,
     cashExpenses: cashExp,
     nonCashExpenses: nonCashExp,
+    netFlow: 0,
+    netProfit: 0,
   };
 
   for (const t of trxs) {
@@ -76,6 +94,10 @@ export async function summarizeShift(db: Db | typeof prisma, shiftId: number): P
     else s.cashSales += t.amount;
     for (const i of t.items) s.cogs += i.quantity * i.costPrice;
   }
+
+  s.netFlow = s.revenue - s.expenses;
+  s.netProfit = s.revenue - s.cogs - s.expenses;
+
   return s;
 }
 
@@ -83,18 +105,23 @@ export function expectedCashOf(initialCash: number, summary: ShiftSummary): numb
   return initialCash + summary.cashSales - summary.cashExpenses;
 }
 
-/** Open a shift. Enforces that only one shift can be Open at any time. */
-export async function openShiftService(openedByRaw: string, initialCashRaw: unknown) {
+/** Open a shift. Enforces that only one shift can be Open at any time. Initial cash is optional (defaults to 0). */
+export async function openShiftService(openedByRaw: string, initialCashRaw?: unknown) {
   const openedBy = cleanStr(openedByRaw, 60);
   if (!openedBy) throw new UserError('Cashier name is required.');
-  const initialCash = requireInteger(initialCashRaw as string | number, 'Initial cash float', { min: 0, max: 2_000_000_000 });
+  const initialCash =
+    initialCashRaw !== undefined && initialCashRaw !== null && String(initialCashRaw).trim() !== ''
+      ? parseInteger(initialCashRaw as string | number, { min: 0, max: 2_000_000_000 }) ?? 0
+      : 0;
 
   try {
     return await prisma.$transaction(async (tx) => {
       const existing = await tx.shift.findFirst({ where: { status: 'Open' } });
       if (existing) throw new UserError('There is already an active shift. Please close it first.');
-      return tx.shift.create({ data: { openedBy, initialCash, status: 'Open', activeKey: 1 } });
-    });
+      const created = await tx.shift.create({ data: { openedBy, initialCash, status: 'Open', activeKey: 1 } });
+      invalidateShiftCache();
+      return created;
+    }, { maxWait: 15000, timeout: 30000 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
       throw new UserError('There is already an active shift. Please close it first.');
@@ -113,7 +140,10 @@ export async function openShiftService(openedByRaw: string, initialCashRaw: unkn
 export async function closeShiftService(shiftId: number, actualCashRaw: unknown, closedByRaw: string) {
   const closedBy = cleanStr(closedByRaw, 60);
   if (!closedBy) throw new UserError('Closed by name is required.');
-  const actualCash = requireInteger(actualCashRaw as string | number, 'Actual cash', { min: 0, max: 2_000_000_000 });
+  const actualCash =
+    actualCashRaw !== undefined && actualCashRaw !== null && String(actualCashRaw).trim() !== ''
+      ? parseInteger(actualCashRaw as string | number, { min: -2_000_000_000, max: 2_000_000_000 }) ?? 0
+      : 0;
 
   return prisma.$transaction(async (tx) => {
     const shift = await tx.shift.findUnique({ where: { id: shiftId } });
@@ -139,8 +169,26 @@ export async function closeShiftService(shiftId: number, actualCashRaw: unknown,
       data: { status: STATUS.CLOSED },
     });
 
+    invalidateShiftCache();
+
+    // Automated Immutable Snapshot Backup upon shift closing (bulletproof disaster recovery)
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const dbPath = path.resolve(process.cwd(), 'prisma', 'dev.db');
+      if (fs.existsSync(dbPath)) {
+        const backupDir = path.resolve(process.cwd(), 'prisma', 'backups');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupFile = path.join(backupDir, `bazaar-shift-${shiftId}-${stamp}.db`);
+        fs.copyFileSync(dbPath, backupFile);
+      }
+    } catch {
+      // Non-fatal if snapshot fails
+    }
+
     return { expectedCash, actualCash };
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 export async function createExpenseService(
@@ -152,30 +200,18 @@ export async function createExpenseService(
   if (!name) throw new UserError('Expense name is required.');
   const amount = requireInteger(amountRaw as string | number, 'Expense amount', { min: 1, max: 2_000_000_000 });
 
-  const paymentMethod = paymentMethodRaw === 'Transfer' || paymentMethodRaw === 'Owner'
-    ? paymentMethodRaw
-    : 'Cash';
+  const paymentMethod = paymentMethodRaw ? cleanStr(paymentMethodRaw, 30) || 'Cash' : 'Cash';
 
   return prisma.$transaction(async (tx) => {
     const shift = await tx.shift.findFirst({ where: { status: 'Open' }, orderBy: { startTime: 'desc' } });
     if (!shift) throw new UserError('Please open a shift before recording expenses.');
 
-    // Validate drawer cash if paying with Cash Drawer atomically
-    if (paymentMethod === 'Cash') {
-      const summary = await summarizeShift(tx, shift.id);
-      const availableCashInDrawer = shift.initialCash + summary.cashSales - summary.cashExpenses;
-      if (amount > availableCashInDrawer) {
-        throw new UserError(
-          `Cannot withdraw ${formatRupiah(amount)} in cash. The cash drawer currently has ${formatRupiah(Math.max(0, availableCashInDrawer))}. Please select 'Bank Transfer' or 'Owner Funds' if paid outside the register.`
-        );
-      }
-    }
-
+    // No cash drawer restrictions: expenses can exceed sales/cash freely (supports upfront rent, negative profit, etc.)
     const now = new Date();
     return tx.expense.create({
       data: { name, amount, paymentMethod, startDate: now, endDate: now, shiftId: shift.id },
     });
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 /** Expenses can only be deleted while their shift is still open. */
@@ -187,5 +223,146 @@ export async function deleteExpenseService(id: number) {
       throw new UserError('Expenses from closed shifts cannot be deleted.');
     }
     await tx.expense.delete({ where: { id } });
-  });
+  }, { maxWait: 15000, timeout: 30000 });
+}
+
+export interface SelectiveResetOptions {
+  transactions?: boolean;
+  shifts?: boolean;
+  stock?: boolean;
+  products?: boolean;
+  expenses?: boolean;
+  inventoryLogs?: boolean;
+  selfies?: boolean;
+}
+
+export interface ClearDataResult {
+  deletedTransactions: number;
+  deletedItems: number;
+  deletedExpenses: number;
+  deletedLogs: number;
+  deletedShifts: number;
+  zeroedProducts: number;
+  zeroedVariants: number;
+  deletedProducts?: number;
+  deletedSelfies: number;
+}
+
+/**
+ * Purge operational data with granular selective control.
+ * By default (or when all selected), resets transactions, shifts, expenses,
+ * inventory logs, selfies, and zeroes out physical stock levels.
+ */
+export async function clearAllTransactionsAndShiftsService(
+  options?: SelectiveResetOptions
+): Promise<ClearDataResult> {
+  const opt: SelectiveResetOptions = options ?? {
+    transactions: true,
+    shifts: true,
+    expenses: true,
+    inventoryLogs: true,
+    selfies: true,
+    stock: true,
+    products: false,
+  };
+
+  const result = await prisma.$transaction(
+    async (tx) => {
+      let deletedTransactions = 0;
+      let deletedItems = 0;
+      let deletedExpenses = 0;
+      let deletedLogs = 0;
+      let deletedShifts = 0;
+      let zeroedProducts = 0;
+      let zeroedVariants = 0;
+      let deletedProducts = 0;
+
+      // 1. Transactions & Items
+      if (opt.transactions) {
+        const delItems = await tx.transactionItem.deleteMany({});
+        const delTx = await tx.transaction.deleteMany({});
+        deletedItems = delItems.count;
+        deletedTransactions = delTx.count;
+      }
+
+      // 2. Shifts
+      if (opt.shifts) {
+        // Disconnect relations if transactions or expenses are kept
+        if (!opt.transactions) {
+          await tx.transaction.updateMany({ data: { shiftId: null } });
+        }
+        if (!opt.expenses) {
+          await tx.expense.updateMany({ data: { shiftId: null } });
+        }
+        const delShifts = await tx.shift.deleteMany({});
+        deletedShifts = delShifts.count;
+      }
+
+      // 3. Operational Expenses
+      if (opt.expenses) {
+        const delExp = await tx.expense.deleteMany({});
+        deletedExpenses = delExp.count;
+      }
+
+      // 4. Inventory Mutation Logs
+      if (opt.inventoryLogs) {
+        const delLogs = await tx.inventoryLog.deleteMany({});
+        deletedLogs = delLogs.count;
+      }
+
+      // 5. Stock Zeroing (if product catalog is preserved)
+      if (opt.stock && !opt.products) {
+        const resetProds = await tx.product.updateMany({ data: { stock: 0 } });
+        const resetVars = await tx.productVariantOption.updateMany({ data: { stock: 0 } });
+        zeroedProducts = resetProds.count;
+        zeroedVariants = resetVars.count;
+      }
+
+      // 6. Delete Full Product Catalog & Variants (if explicitly requested)
+      if (opt.products) {
+        if (!opt.transactions) {
+          await tx.transactionItem.updateMany({ data: { productId: null, variantOptionId: null } });
+        }
+        await tx.productImage.deleteMany({});
+        await tx.productVariantOption.deleteMany({});
+        await tx.inventoryLog.deleteMany({});
+        const delProds = await tx.product.deleteMany({});
+        deletedProducts = delProds.count;
+        await tx.productType.deleteMany({});
+        await tx.productVariant.deleteMany({});
+      }
+
+      // 7. Clear Selfie URLs on transactions if selfies deleted but transactions kept
+      if (opt.selfies && !opt.transactions) {
+        await tx.transaction.updateMany({ data: { selfieUrl: null } });
+      }
+
+      return {
+        deletedTransactions,
+        deletedItems,
+        deletedExpenses,
+        deletedLogs,
+        deletedShifts,
+        zeroedProducts,
+        zeroedVariants,
+        deletedProducts,
+      };
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
+
+  let deletedSelfies = 0;
+  if (opt.selfies) {
+    const { deleteAllSelfieUploads } = await import('@/lib/uploads');
+    deletedSelfies = await deleteAllSelfieUploads();
+  }
+
+  if (opt.shifts) {
+    invalidateShiftCache();
+  }
+
+  return {
+    ...result,
+    deletedSelfies,
+  };
 }

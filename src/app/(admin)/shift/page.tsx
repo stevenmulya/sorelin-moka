@@ -44,7 +44,7 @@ export default async function ShiftPage() {
           </div>
           <h2 className="text-2xl font-bold text-[#6B4227] mb-2">No Active Shift</h2>
           <p className="text-[#8E6D53] mb-8 max-w-md mx-auto">
-            You cannot process new transactions until a shift is opened. Enter your name and the initial cash amount in the drawer to begin.
+            You cannot process new transactions until a shift is opened. Enter your name to begin.
           </p>
 
           <ActionForm action={openShift} className="max-w-sm mx-auto bg-[#FAF0DA] p-6 rounded-2xl border border-[#E5D5BC] text-left space-y-4">
@@ -55,24 +55,29 @@ export default async function ShiftPage() {
                 name="openedBy"
                 required
                 maxLength={60}
-                placeholder="Your Name"
+                placeholder="Enter cashier name"
                 className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-[#6B4227] mb-1">Initial Cash (Rp)</label>
+              <label className="block text-sm font-semibold text-[#6B4227] mb-1">
+                Modal Awal Kasir / Petty Cash
+              </label>
               <input
                 type="number"
                 name="initialCash"
-                required
                 defaultValue={0}
                 min={0}
+                placeholder="0"
                 className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:outline-none"
               />
+              <p className="text-[11px] text-[#8E6D53] mt-1 font-normal">
+                Uang kembalian yang dimasukkan ke laci saat buka booth (opsional, default Rp 0).
+              </p>
             </div>
             <SubmitButton
               pendingText="Starting..."
-              className="w-full py-2.5 bg-[#6B4227] text-[#FAF0DA] rounded-xl font-semibold hover:bg-[#54311B] transition-colors flex items-center justify-center gap-2 shadow-xs"
+              className="w-full py-2.5 bg-[#6B4227] text-[#FAF0DA] rounded-xl font-semibold hover:bg-[#54311B] transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <LogIn className="h-4 w-4" /> Start Shift
             </SubmitButton>
@@ -100,39 +105,47 @@ export default async function ShiftPage() {
                 <div className="p-4 bg-[#FAF0DA] rounded-xl border border-[#E5D5BC]">
                   <p className="text-xs font-bold text-[#8E6D53] mb-1">Total Sales</p>
                   <p className="text-xl font-bold text-[#6B4227] truncate">{formatRupiah(summary.revenue)}</p>
+                  <p className="text-[11px] text-[#8E6D53] mt-1">{summary.paidOrders} paid orders</p>
                 </div>
                 <div className="p-4 bg-[#FAF0DA] rounded-xl border border-[#E5D5BC]">
-                  <p className="text-xs font-bold text-[#8E6D53] mb-1">QRIS / Debit</p>
-                  <p className="text-xl font-bold text-[#C88A32] truncate">{formatRupiah(summary.qrisSales + summary.debitSales)}</p>
+                  <p className="text-xs font-bold text-[#8E6D53] mb-1">Total Expenses</p>
+                  <p className="text-xl font-bold text-red-600 truncate">{formatRupiah(summary.expenses)}</p>
+                  <p className="text-[11px] text-[#8E6D53] mt-1">Operational costs</p>
                 </div>
               </div>
 
-              <div className="border-t border-[#E5D5BC]/60 pt-6">
-                <h3 className="text-sm font-bold text-[#6B4227] mb-4">Cash Drawer Calculation</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between text-[#5C3A21]">
-                    <span>Starting Cash Float</span>
-                    <span>{formatRupiah(activeShift.initialCash)}</span>
+              <div className="border-t border-[#E5D5BC]/60 pt-5 space-y-3">
+                <div className="p-4 rounded-xl border border-[#E5D5BC] bg-[#FAF0DA]">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-bold text-[#8E6D53]">Net Result / Profit</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${summary.netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                      {summary.netProfit >= 0 ? 'Surplus' : 'Deficit'}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-[#5C3A21]">
-                    <span>+ Cash Sales</span>
-                    <span>{formatRupiah(summary.cashSales)}</span>
+                  <p className={`text-2xl font-bold tracking-tight ${summary.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {formatRupiah(summary.netProfit)}
+                  </p>
+                  <p className="text-[11px] text-[#8E6D53] mt-1">Sales ({formatRupiah(summary.revenue)}) - COGS ({formatRupiah(summary.cogs)}) - Expenses ({formatRupiah(summary.expenses)})</p>
+                </div>
+
+                <div className="space-y-2 text-xs text-[#5C3A21] pt-1">
+                  <div className="flex justify-between">
+                    <span>Cash Sales:</span>
+                    <span className="font-semibold text-[#6B4227]">{formatRupiah(summary.cashSales)}</span>
                   </div>
-                  {summary.cashExpenses > 0 && (
-                    <div className="flex justify-between text-red-600 font-medium">
-                      <span>- Cash Drawer Expenses</span>
-                      <span>- {formatRupiah(summary.cashExpenses)}</span>
-                    </div>
-                  )}
-                  {summary.nonCashExpenses > 0 && (
-                    <div className="flex justify-between text-[#8E6D53] text-xs py-1 px-2 bg-[#FAF0DA] rounded-lg border border-[#E5D5BC]">
-                      <span>Bank / Owner Expenses (External)</span>
-                      <span>{formatRupiah(summary.nonCashExpenses)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-[#6B4227] pt-2 border-t border-dashed border-[#E5D5BC]">
-                    <span>Expected Cash in Drawer</span>
-                    <span>{formatRupiah(expectedCash)}</span>
+                  <div className="flex justify-between">
+                    <span>QRIS / Debit Sales:</span>
+                    <span className="font-semibold text-[#6B4227]">{formatRupiah(summary.qrisSales + summary.debitSales)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Operational Expenses:</span>
+                    <span className="font-semibold text-red-600">- {formatRupiah(summary.expenses)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold pt-2 border-t border-dashed border-[#E5D5BC]">
+                    <span>Net Financial Flow (Sales - Expenses):</span>
+                    <span className={summary.netFlow >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                      {formatRupiah(summary.netFlow)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -144,7 +157,7 @@ export default async function ShiftPage() {
               <h2 className="text-lg font-bold text-[#6B4227] flex items-center gap-2">
                 <LogOut className="h-5 w-5 text-[#8E6D53]" /> Close Shift
               </h2>
-              <p className="text-sm text-[#8E6D53] mt-1">Count the physical cash in your drawer before closing.</p>
+              <p className="text-sm text-[#8E6D53] mt-1">End this cashier shift whenever the event concludes.</p>
             </div>
 
             <div className="p-6 flex-1 flex flex-col justify-center">
@@ -159,6 +172,7 @@ export default async function ShiftPage() {
           </div>
         </div>
       )}
+
 
       {/* Recent Shifts History */}
       {recentShifts.length > 0 && (
@@ -212,6 +226,8 @@ export default async function ShiftPage() {
           </div>
         </div>
       )}
+
+      
     </div>
   );
 }

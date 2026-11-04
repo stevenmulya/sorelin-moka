@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { connection } from 'next/server';
 import Sidebar from '@/components/Sidebar';
 import ShiftTimer from '@/components/ShiftTimer';
+import AdminBreadcrumb from '@/components/AdminBreadcrumb';
 import { getActiveShift } from '@/lib/services/shifts';
 import { formatRupiah } from '@/lib/utils';
 import { formatWibDate } from '@/lib/dates';
@@ -15,6 +17,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   const activeShift = await getActiveShift();
 
   return (
@@ -35,10 +38,10 @@ export default async function AdminLayout({
               />
             </Link>
           </div>
-          <div className="hidden md:block">
-            {/* Title / Brand Info */}
+          <div className="hidden md:flex items-center min-w-0 mr-4 flex-1">
+            <AdminBreadcrumb />
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-4 ml-auto">
+          <div className="flex flex-wrap items-center justify-end gap-3 ml-auto flex-shrink-0">
             {!activeShift ? (
               <>
                 <span className="hidden sm:inline-block text-sm font-medium text-[#8E6D53]">
@@ -62,11 +65,7 @@ export default async function AdminLayout({
                   </span>
                   <span className="w-1 h-1 bg-[#D5C1A1] rounded-full"></span>
                   <span>
-                    Initial Float: <span className="font-semibold text-[#6B4227]">{formatRupiah(activeShift.initialCash)}</span>
-                  </span>
-                  <span className="w-1 h-1 bg-[#D5C1A1] rounded-full"></span>
-                  <span>
-                    Duration: <ShiftTimer startTime={activeShift.startTime} />
+                    Shift Duration: <ShiftTimer startTime={activeShift.startTime} />
                   </span>
                 </div>
 
@@ -84,6 +83,9 @@ export default async function AdminLayout({
 
         {/* Main area */}
         <main className="flex-1 overflow-y-auto bg-[#FAF0DA] p-4 sm:p-6 lg:p-8">
+          <div className="md:hidden mb-4">
+            <AdminBreadcrumb />
+          </div>
           {children}
         </main>
       </div>

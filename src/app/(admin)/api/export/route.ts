@@ -27,7 +27,16 @@ export async function GET(request: Request) {
   const isThisShift = range.preset === 'this_shift';
   const shiftFilterId = activeShift ? activeShift.id : -1;
 
-  const [transactions, expenseAgg] = await Promise.all([
+  const expenseWhere = isThisShift
+    ? { shiftId: shiftFilterId }
+    : {
+        createdAt: {
+          gte: range.start,
+          lte: range.end,
+        },
+      };
+
+  const [transactions, expenseAgg, expensesList] = await Promise.all([
     prisma.transaction.findMany({
       where: isThisShift
         ? { shiftId: shiftFilterId }
@@ -41,15 +50,12 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'asc' },
     }),
     prisma.expense.aggregate({
-      where: isThisShift
-        ? { shiftId: shiftFilterId }
-        : {
-            createdAt: {
-              gte: range.start,
-              lte: range.end,
-            },
-          },
+      where: expenseWhere,
       _sum: { amount: true },
+    }),
+    prisma.expense.findMany({
+      where: expenseWhere,
+      orderBy: { createdAt: 'asc' },
     }),
   ]);
 
@@ -71,6 +77,7 @@ export async function GET(request: Request) {
   const buf = await buildTransactionsExcelBuffer({
     transactions,
     totalExpenses: rangeOpex,
+    expensesList,
     sheetName: 'Transactions',
     periodLabel: rangeDisplayStr,
   });

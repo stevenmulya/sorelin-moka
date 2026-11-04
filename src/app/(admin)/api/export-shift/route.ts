@@ -58,6 +58,7 @@ export async function GET(request: Request) {
   const buf = await buildTransactionsExcelBuffer({
     transactions: shift.transactions,
     totalExpenses: shiftOpex,
+    expensesList: shift.expenses,
     sheetName: 'Shift Transactions',
     shiftMeta: {
       startStr,

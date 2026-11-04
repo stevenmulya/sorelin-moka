@@ -16,7 +16,11 @@ export default async function NewTransactionPage() {
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: [{ priority: 'desc' }, { name: 'asc' }],
-      include: { images: { take: 1 }, type: true, variant: true },
+      include: {
+        images: { take: 1 },
+        type: true,
+        variants: { where: { isActive: true }, orderBy: { priority: 'asc' } },
+      },
     }),
     getActiveShift(),
   ]);

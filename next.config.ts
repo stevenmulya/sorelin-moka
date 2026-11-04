@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   experimental: {
+    cpus: 1,
     serverActions: {
       // Product image uploads (up to 4 x 3 MB) are sent via Server Actions; the default 1 MB limit is too small.
       bodySizeLimit: "16mb",

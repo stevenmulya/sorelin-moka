@@ -16,6 +16,11 @@ import {
 } from 'lucide-react';
 import { submitKioskOrder } from '@/app/actions';
 import { effectivePrice, formatRupiah } from '@/lib/utils';
+import { parseBundleConfig } from '@/lib/bundle-config';
+import ItemCustomizerModal, {
+  type CustomizationResult,
+  type ProductVariantItem,
+} from '@/components/ItemCustomizerModal';
 
 export interface KioskProduct {
   id: number;
@@ -27,14 +32,31 @@ export interface KioskProduct {
   isFavorite?: boolean;
   type?: { id: number; name: string } | null;
   variant?: { id: number; name: string } | null;
+  availableVariants?: string | null;
+  isBundle?: boolean;
+  bundleQuota?: number | null;
   description?: string | null;
   images?: Array<{ url: string }> | null;
+  variants?: ProductVariantItem[];
+}
+
+export interface KioskCartItem {
+  cartId: string;
+  product: KioskProduct;
+  quantity: number;
+  variantOptionId?: number | null;
+  selectedVariant?: string | null;
+  selectedPrice?: number;
+  isBundle?: boolean;
+  bundleContents?: string | null;
+  notes?: string | null;
 }
 
 export default function KioskFlow({ products }: { products: KioskProduct[] }) {
   const router = useRouter();
   const [step, setStep] = useState<'start' | 'menu' | 'checkout' | 'biodata' | 'selfie' | 'success'>('start');
-  const [cart, setCart] = useState<{ product: KioskProduct; quantity: number }[]>([]);
+  const [cart, setCart] = useState<KioskCartItem[]>([]);
+  const [customizingProduct, setCustomizingProduct] = useState<KioskProduct | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
@@ -59,11 +81,21 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
   const ITEMS_PER_PAGE = 12;
 
-  // Extract unique product types
+  // Check if any bundle packages exist
+  const hasBundles = useMemo(() => {
+    return products.some((p) => p.isBundle);
+  }, [products]);
+
+  // Extract unique product types from non-bundle products (e.g. Saltbread, Beverage)
   const availableTypes = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
-      if (p.type?.name) set.add(p.type.name);
+      if (!p.isBundle && p.type?.name) {
+        const name = p.type.name.trim();
+        if (name.toLowerCase() !== 'bundle' && name.toLowerCase() !== 'bundling') {
+          set.add(name);
+        }
+      }
     });
     return Array.from(set);
   }, [products]);
@@ -73,8 +105,9 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     return products.filter((p) => {
       if (filterBestSeller && !p.isBestSeller) return false;
       if (filterFavorite && !p.isFavorite) return false;
-      if (selectedType !== 'ALL' && p.type?.name !== selectedType) return false;
-      return true;
+      if (selectedType === 'ALL') return true;
+      if (selectedType === 'BUNDLE') return p.isBundle;
+      return !p.isBundle && p.type?.name?.trim().toLowerCase() === selectedType.trim().toLowerCase();
     });
   }, [products, filterBestSeller, filterFavorite, selectedType]);
 
@@ -135,37 +168,175 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredProducts, safePage]);
 
-  const totalAmount = cart.reduce((sum, item) => sum + effectivePrice(item.product) * item.quantity, 0);
+  // Collect all available flavor variants across products for bundle customization
+  const allAvailableVariants = useMemo(() => {
+    return products.flatMap((p) => p.variants || []);
+  }, [products]);
+
+  const totalBakeryStock = useMemo(() => {
+    return allAvailableVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+  }, [allAvailableVariants]);
+
+  // Check if a bundle package can be satisfied by physical inventory
+  const isBundleAvailable = useCallback(
+    (bundle: KioskProduct) => {
+      if (!bundle.isBundle) return true;
+      const config = parseBundleConfig(bundle.availableVariants);
+
+      if (config.slots && config.slots.length > 0) {
+        for (const slot of config.slots) {
+          if (slot.type === 'CATEGORY' && slot.categoryName) {
+            const catName = slot.categoryName.trim().toLowerCase();
+            const quota = slot.quota || 1;
+            const matching = products.filter(
+              (p) => p.type?.name?.trim().toLowerCase() === catName && !p.isBundle
+            );
+            const totalStock = matching.reduce((sum, p) => {
+              if (p.variants && p.variants.length > 0) {
+                return sum + p.variants.reduce((vSum, v) => vSum + (v.stock || 0), 0);
+              }
+              return sum + (p.stock || 0);
+            }, 0);
+
+            if (totalStock < quota) return false;
+          } else if (slot.type === 'PRODUCT') {
+            const qty = slot.quantity || 1;
+            const matching = products.find(
+              (p) =>
+                (slot.productId && p.id === slot.productId) ||
+                (slot.productName && p.name.trim().toLowerCase() === slot.productName.trim().toLowerCase())
+            );
+            const pStock = matching
+              ? matching.variants && matching.variants.length > 0
+                ? matching.variants.reduce((s, v) => s + (v.stock || 0), 0)
+                : matching.stock
+              : 0;
+            if (pStock < qty) return false;
+          }
+        }
+        return true;
+      }
+
+      // Legacy fallback: check total bakery stock >= quota
+      const quota = bundle.bundleQuota || 2;
+      return totalBakeryStock >= quota;
+    },
+    [products, totalBakeryStock]
+  );
+
+  const getItemPrice = useCallback((item: KioskCartItem) => {
+    return item.selectedPrice ?? effectivePrice(item.product);
+  }, []);
+
+  const totalAmount = cart.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0);
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const getCartQuantity = useCallback(
-    (productId: number) => cart.find((item) => item.product.id === productId)?.quantity ?? 0,
+    (productId: number) =>
+      cart
+        .filter((item) => item.product.id === productId)
+        .reduce((sum, item) => sum + item.quantity, 0),
     [cart]
   );
 
   const addToCart = (product: KioskProduct) => {
-    if (product.stock <= 0) return;
+    const currentQty = getCartQuantity(product.id);
+    const hasVariants = product.isBundle || Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
+    if (!hasVariants && product.stock - currentQty <= 0) return;
+
+    // If item has customizable flavor variants or is a bundle, open the customizer modal
+    if (product.availableVariants || product.isBundle || (product.variants && product.variants.length > 0)) {
+      setCustomizingProduct(product);
+      return;
+    }
+
+    // Standard product
+    const cartId = `${product.id}-standard`;
+    const eff = effectivePrice(product);
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find((item) => item.cartId === cartId);
       if (existing) {
-        if (existing.quantity >= product.stock) return prev;
+        if (currentQty >= product.stock) return prev;
         return prev.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          cartId,
+          product,
+          quantity: 1,
+          variantOptionId: null,
+          selectedVariant: null,
+          selectedPrice: eff,
+          isBundle: false,
+          bundleContents: null,
+          notes: null,
+        },
+      ];
     });
   };
 
-  const removeFromCart = (productId: number) => {
+  const handleCustomizerConfirm = (res: CustomizationResult) => {
+    const cartId = `${res.product.id}-${res.variantOptionId || ''}-${res.selectedVariant || ''}-${res.bundleContents || ''}-${res.notes || ''}`;
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === productId);
+      const existing = prev.find((item) => item.cartId === cartId);
+      if (existing) {
+        return prev.map((item) =>
+          item.cartId === cartId ? { ...item, quantity: item.quantity + res.quantity } : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          cartId,
+          product: res.product as KioskProduct,
+          quantity: res.quantity,
+          variantOptionId: res.variantOptionId,
+          selectedVariant: res.selectedVariant,
+          selectedPrice: res.selectedPrice,
+          isBundle: res.isBundle,
+          bundleContents: res.bundleContents,
+          notes: res.notes,
+        },
+      ];
+    });
+    setCustomizingProduct(null);
+  };
+
+  const incrementCartItem = (cartId: string) => {
+    setCart((prev) => {
+      const item = prev.find((i) => i.cartId === cartId);
+      if (!item) return prev;
+      const currentQty = prev
+        .filter((i) => i.product.id === item.product.id)
+        .reduce((sum, i) => sum + i.quantity, 0);
+      if (item.product.isBundle) {
+        const quota = item.product.bundleQuota || 3;
+        if ((currentQty + 1) * quota > totalBakeryStock) return prev;
+      } else if (item.variantOptionId) {
+        const matchingVar = allAvailableVariants.find((v) => v.id === item.variantOptionId);
+        const currentVarQty = prev
+          .filter((i) => i.variantOptionId === item.variantOptionId)
+          .reduce((sum, i) => sum + i.quantity, 0);
+        if (matchingVar && currentVarQty >= matchingVar.stock) return prev;
+      } else if (currentQty >= item.product.stock) {
+        return prev;
+      }
+      return prev.map((i) => (i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i));
+    });
+  };
+
+  const decrementCartItem = (cartId: string) => {
+    setCart((prev) => {
+      const item = prev.find((i) => i.cartId === cartId);
+      if (!item) return prev;
       const next =
-        existing && existing.quantity > 1
-          ? prev.map((item) =>
-              item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
-            )
-          : prev.filter((item) => item.product.id !== productId);
+        item.quantity > 1
+          ? prev.map((i) => (i.cartId === cartId ? { ...i, quantity: i.quantity - 1 } : i))
+          : prev.filter((i) => i.cartId !== cartId);
       if (next.length === 0 && step === 'checkout') {
         setStep('menu');
       }
@@ -173,9 +344,9 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     });
   };
 
-  const deleteFromCart = (productId: number) => {
+  const removeCartItem = (cartId: string) => {
     setCart((prev) => {
-      const next = prev.filter((item) => item.product.id !== productId);
+      const next = prev.filter((item) => item.cartId !== cartId);
       if (next.length === 0 && step === 'checkout') {
         setStep('menu');
       }
@@ -215,7 +386,11 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     const scale = Math.min(1, maxWidth / width);
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    context.save();
+    context.scale(-1, 1);
+    context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    context.restore();
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     if (!dataUrl || !dataUrl.startsWith('data:image/')) {
@@ -322,6 +497,11 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
         items: cart.map((i) => ({
           productId: i.product.id,
           quantity: i.quantity,
+          variantOptionId: i.variantOptionId || undefined,
+          selectedVariant: i.selectedVariant,
+          isBundle: i.isBundle,
+          bundleContents: i.bundleContents,
+          notes: i.notes,
         })),
       });
 
@@ -342,6 +522,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     stopCamera();
     setStep('start');
     setCart([]);
+    setCustomizingProduct(null);
     setName('');
     setEmail('');
     setPhoto(null);
@@ -363,7 +544,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     if (step === 'success') {
       const timer = setTimeout(() => {
         resetFlow();
-      }, 12000);
+      }, 35000);
       return () => clearTimeout(timer);
     }
 
@@ -418,7 +599,18 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
   // =========================================================================
   if (step === 'menu') {
     const selectedCartQty = selectedProduct ? getCartQuantity(selectedProduct.id) : 0;
-    const selectedAtMaxStock = selectedProduct ? selectedCartQty >= selectedProduct.stock : false;
+    const isSelectedOutOfStock = selectedProduct
+      ? selectedProduct.isBundle
+        ? !isBundleAvailable(selectedProduct)
+        : (selectedProduct.variants && selectedProduct.variants.length > 0)
+        ? selectedProduct.variants.every((v) => v.stock <= 0)
+        : selectedProduct.stock <= 0
+      : false;
+    const selectedAtMaxStock = selectedProduct
+      ? isSelectedOutOfStock || (selectedProduct.isBundle
+        ? !isBundleAvailable(selectedProduct)
+        : selectedCartQty >= selectedProduct.stock)
+      : false;
     const selectedImages = selectedProduct?.images ?? [];
 
     return (
@@ -482,7 +674,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                     : 'bg-[#FAF0DA] text-[#6B4227] hover:bg-[#6B4227]/10 hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px]'
                 }`}
               >
-                All Items
+                All
               </button>
               {availableTypes.map((t) => (
                 <button
@@ -498,6 +690,19 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                   {t}
                 </button>
               ))}
+              {hasBundles && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectType('BUNDLE')}
+                  className={`px-3.5 py-1 rounded-sm font-handwriting text-sm font-bold whitespace-nowrap transition-all duration-150 ease-out border-2 border-[#6B4227] cursor-pointer ${
+                    selectedType === 'BUNDLE'
+                      ? 'bg-[#6B4227] text-[#FAF0DA] shadow-[2px_2px_0px_#6B4227] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#6B4227] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none'
+                      : 'bg-[#FAF0DA] text-[#6B4227] hover:bg-[#6B4227]/10 hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px]'
+                  }`}
+                >
+                  📦 Bundle
+                </button>
+              )}
             </div>
 
             {/* Right: Quick Highlight Toggles */}
@@ -537,7 +742,11 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
             {currentItems.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-7 items-start">
                 {currentItems.map((product) => {
-                  const isOutOfStock = product.stock <= 0;
+                  const hasVariants = product.isBundle || Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
+                  const variantsAllOut = Boolean(product.variants && product.variants.length > 0 && product.variants.every((v) => v.stock <= 0));
+                  const isOutOfStock = product.isBundle
+                    ? !isBundleAvailable(product)
+                    : (variantsAllOut || product.stock <= 0);
                   const eff = effectivePrice(product);
                   const hasDiscount = Boolean(
                     product.discountPrice &&
@@ -548,7 +757,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                     ? Math.round(((product.price - product.discountPrice!) / product.price) * 100)
                     : 0;
                   const inCartQty = getCartQuantity(product.id);
-                  const atMaxStock = inCartQty >= product.stock;
+                  const atMaxStock = isOutOfStock || (product.isBundle ? !isBundleAvailable(product) : inCartQty >= product.stock);
 
                   return (
                     /* Torn Paper Slip Card with Top Masking Tape */
@@ -596,6 +805,16 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                             {/* Badges: Top Left */}
                             {!isOutOfStock && (
                               <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 items-start">
+                                {product.isBundle && (
+                                  <span className="font-handwriting font-bold text-[10px] sm:text-[11px] px-1.5 py-0.5 border-1.5 border-[#6B4227] bg-[#FAF0DA] text-[#6B4227] rounded-sm shadow-[1px_1px_0px_#6B4227]">
+                                    📦 Bundle
+                                  </span>
+                                )}
+                                {Boolean(product.availableVariants) && !product.isBundle && (
+                                  <span className="font-handwriting font-bold text-[10px] sm:text-[11px] px-1.5 py-0.5 border-1.5 border-[#6B4227] bg-[#FAF0DA] text-[#6B4227] rounded-sm shadow-[1px_1px_0px_#6B4227]">
+                                    ✨ Flavors
+                                  </span>
+                                )}
                                 {product.isBestSeller && (
                                   <span className="font-handwriting font-bold text-[10px] sm:text-[11px] px-1.5 py-0.5 border-1.5 border-[#6B4227] bg-[#FAF0DA] text-[#6B4227] rounded-sm shadow-[1px_1px_0px_#6B4227]">
                                     ★ Best
@@ -637,9 +856,15 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
                           {/* Price Row */}
                           <div className="flex items-baseline gap-1.5 mt-1 font-handwriting">
-                            <span className="text-base sm:text-lg font-extrabold text-[#6B4227]">
-                              {formatRupiah(eff)}
-                            </span>
+                            {product.variants && product.variants.length > 0 && Math.min(...product.variants.map((v) => v.price)) !== Math.max(...product.variants.map((v) => v.price)) ? (
+                              <span className="text-base sm:text-lg font-extrabold text-[#6B4227]">
+                                From {formatRupiah(Math.min(...product.variants.map((v) => v.price)))}
+                              </span>
+                            ) : (
+                              <span className="text-base sm:text-lg font-extrabold text-[#6B4227]">
+                                {formatRupiah(eff)}
+                              </span>
+                            )}
                             {hasDiscount && (
                               <span className="text-xs text-[#6B4227]/60 line-through">
                                 {formatRupiah(product.price)}
@@ -648,7 +873,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                           </div>
 
                           {/* Low stock notice */}
-                          {!isOutOfStock && product.stock <= 5 && (
+                          {!isOutOfStock && !product.isBundle && product.stock <= 5 && (
                             <p className="font-handwriting text-xs font-semibold text-[#6B4227]/80 mt-0.5">
                               only {product.stock} left in bakery
                             </p>
@@ -661,6 +886,24 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                             <div className="w-full py-1.5 border-2 border-dashed border-[#6B4227]/40 text-[#6B4227]/60 font-handwriting text-sm font-bold text-center rounded-sm">
                               Sold Out Today
                             </div>
+                          ) : product.isBundle || product.availableVariants || (product.variants && product.variants.length > 0) ? (
+                            <button
+                              type="button"
+                              onClick={() => addToCart(product)}
+                              disabled={atMaxStock}
+                              className="w-full py-1.5 bg-[#FAF0DA] text-[#6B4227] hover:bg-[#6B4227] hover:text-[#FAF0DA] border-2 border-[#6B4227] rounded-sm font-handwriting text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-150 ease-out shadow-[2px_2px_0px_#6B4227] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#6B4227] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40 cursor-pointer"
+                            >
+                              <Plus className="h-4 w-4 stroke-[2.5]" />
+                              <span>
+                                {atMaxStock
+                                  ? `Max in Bag (${inCartQty})`
+                                  : inCartQty > 0
+                                    ? `+ Add More (${inCartQty})`
+                                    : product.isBundle
+                                      ? 'Choose Bundle'
+                                      : 'Select Flavor'}
+                              </span>
+                            </button>
                           ) : inCartQty === 0 ? (
                             <button
                               type="button"
@@ -674,7 +917,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                             <div className="w-full flex items-center justify-between bg-[#6B4227] text-[#FAF0DA] border-2 border-[#6B4227] rounded-sm p-1 shadow-[2px_2px_0px_#6B4227]">
                               <button
                                 type="button"
-                                onClick={() => removeFromCart(product.id)}
+                                onClick={() => decrementCartItem(`${product.id}-standard`)}
                                 className="w-7 h-7 flex items-center justify-center bg-[#FAF0DA] text-[#6B4227] hover:bg-[#FAF0DA]/90 active:translate-y-[1px] active:scale-95 font-bold transition-all duration-100 cursor-pointer rounded-xs border border-[#6B4227]"
                                 aria-label="Decrease quantity"
                               >
@@ -884,7 +1127,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                     Fresh in Oven
                   </div>
                 )}
-                {selectedProduct.stock <= 0 && (
+                {isSelectedOutOfStock && (
                   <div className="absolute inset-0 bg-[#6B4227]/85 flex items-center justify-center p-1">
                     <span className="border-2 border-[#FAF0DA] text-[#FAF0DA] font-handwriting text-xs font-bold px-3 py-1 -rotate-6 uppercase tracking-wider">
                       Sold Out Today
@@ -944,20 +1187,41 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
               <button
                 type="button"
                 onClick={() => {
-                  addToCart(selectedProduct);
+                  const prod = selectedProduct;
                   setSelectedProduct(null);
+                  addToCart(prod);
                 }}
-                disabled={selectedProduct.stock <= 0 || selectedAtMaxStock}
+                disabled={isSelectedOutOfStock || selectedAtMaxStock}
                 className="w-full mt-5 py-2.5 bg-[#6B4227] text-[#FAF0DA] hover:bg-[#54311B] border-2 border-[#6B4227] rounded-sm font-handwriting text-base font-bold uppercase tracking-wider transition-all duration-150 ease-out shadow-[3px_3px_0px_#6B4227] hover:translate-x-[1.5px] hover:translate-y-[1.5px] hover:shadow-[1.5px_1.5px_0px_#6B4227] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                {selectedProduct.stock <= 0
+                {isSelectedOutOfStock
                   ? 'Sold Out Today'
                   : selectedAtMaxStock
                     ? `Max Stock in Bag (${selectedCartQty})`
-                    : `+ Add to Order • ${formatRupiah(effectivePrice(selectedProduct))}`}
+                    : selectedProduct.isBundle
+                      ? `Choose Bundle • ${formatRupiah(effectivePrice(selectedProduct))}`
+                      : selectedProduct.availableVariants || (selectedProduct.variants && selectedProduct.variants.length > 0)
+                        ? `Select Flavor • ${formatRupiah(effectivePrice(selectedProduct))}`
+                        : `+ Add to Order • ${formatRupiah(effectivePrice(selectedProduct))}`}
               </button>
             </div>
           </div>
+        )}
+
+        {/* Item Customizer Modal (Flavors & Bundling) */}
+        {customizingProduct && (
+          <ItemCustomizerModal
+            product={customizingProduct}
+            maxAvailableStock={
+              customizingProduct.isBundle
+                ? totalBakeryStock
+                : customizingProduct.stock - getCartQuantity(customizingProduct.id)
+            }
+            allAvailableVariants={allAvailableVariants}
+            allProducts={products}
+            onClose={() => setCustomizingProduct(null)}
+            onConfirm={handleCustomizerConfirm}
+          />
         )}
       </div>
     );
@@ -985,14 +1249,36 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
         <main className="flex-1 p-4 sm:p-6 max-w-lg mx-auto w-full overflow-y-auto kiosk-scrollbar flex flex-col justify-between">
           <div className="bg-[#FAF0DA] rounded-sm border-2 border-[#6B4227] p-4 divide-y divide-[#6B4227]/20 shadow-[4px_4px_0px_#6B4227]">
             {cart.map((item) => {
-              const eff = effectivePrice(item.product);
-              const atMax = item.quantity >= item.product.stock;
+              const unitPrice = getItemPrice(item);
+              const totalInCartForProduct = getCartQuantity(item.product.id);
+              const atMax = item.product.isBundle ? false : totalInCartForProduct >= item.product.stock;
               return (
-                <div key={item.product.id} className="py-3 flex items-center justify-between first:pt-0 last:pb-0">
+                <div key={item.cartId} className="py-3 flex items-center justify-between first:pt-0 last:pb-0 gap-3">
                   <div className="flex-1 pr-2">
                     <h4 className="font-handwriting text-base font-bold text-[#6B4227] line-clamp-1">{item.product.name}</h4>
-                    <p className="font-handwriting text-sm text-[#6B4227]/80 mt-0.5">
-                      {formatRupiah(eff)}
+
+                    {item.selectedVariant && (
+                      <div className="mt-0.5">
+                        <span className="inline-block px-1.5 py-0.5 text-xs font-handwriting font-bold bg-[#6B4227] text-[#FAF0DA] rounded-xs shadow-xs">
+                          Flavor: {item.selectedVariant}
+                        </span>
+                      </div>
+                    )}
+
+                    {item.isBundle && item.bundleContents && (
+                      <div className="mt-1 text-xs font-handwriting text-[#6B4227] font-semibold bg-[#6B4227]/10 p-1.5 rounded-xs border border-[#6B4227]/30">
+                        📦 Bundle: {item.bundleContents}
+                      </div>
+                    )}
+
+                    {item.notes && (
+                      <p className="text-xs font-handwriting italic text-[#6B4227]/70 mt-0.5">
+                        Note: &ldquo;{item.notes}&rdquo;
+                      </p>
+                    )}
+
+                    <p className="font-handwriting text-sm text-[#6B4227]/80 mt-1">
+                      {formatRupiah(unitPrice)} x {item.quantity} = <span className="font-bold text-[#6B4227]">{formatRupiah(unitPrice * item.quantity)}</span>
                       {atMax && <span className="ml-1.5 text-xs text-[#6B4227] font-bold">(Max stock)</span>}
                     </p>
                   </div>
@@ -1001,7 +1287,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                     <div className="flex items-center bg-[#FAF0DA] border-2 border-[#6B4227] rounded-sm shadow-[1px_1px_0px_#6B4227]">
                       <button
                         type="button"
-                        onClick={() => removeFromCart(item.product.id)}
+                        onClick={() => decrementCartItem(item.cartId)}
                         className="p-1.5 text-[#6B4227] hover:bg-[#6B4227] hover:text-[#FAF0DA] active:scale-90 transition-all cursor-pointer"
                       >
                         <Minus className="h-3 w-3 stroke-[2.5]" />
@@ -1011,7 +1297,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                       </span>
                       <button
                         type="button"
-                        onClick={() => addToCart(item.product)}
+                        onClick={() => incrementCartItem(item.cartId)}
                         disabled={atMax}
                         className="p-1.5 text-[#6B4227] hover:bg-[#6B4227] hover:text-[#FAF0DA] active:scale-90 disabled:opacity-30 transition-all cursor-pointer"
                       >
@@ -1021,7 +1307,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
 
                     <button
                       type="button"
-                      onClick={() => deleteFromCart(item.product.id)}
+                      onClick={() => removeCartItem(item.cartId)}
                       className="p-1.5 text-[#6B4227] hover:bg-[#6B4227] hover:text-[#FAF0DA] border border-[#6B4227] rounded-sm transition-all active:scale-90 cursor-pointer"
                       title="Remove item"
                     >
@@ -1076,7 +1362,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
           <div className="w-12"></div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 max-w-sm mx-auto w-full flex items-center">
+        <main className="flex-1 p-4 sm:p-6 max-w-sm mx-auto w-full flex items-center justify-center overflow-y-auto kiosk-scrollbar">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -1111,7 +1397,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 maxLength={120}
-                placeholder="email@example.com"
+                placeholder="Enter your email"
                 className="w-full px-3 py-2 font-handwriting text-base bg-[#FAF0DA] border-2 border-[#6B4227] rounded-sm text-[#6B4227] placeholder-[#6B4227]/40 focus:outline-none focus:ring-1 focus:ring-[#6B4227]"
               />
             </div>
@@ -1173,7 +1459,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                 muted
                 onLoadedMetadata={() => setCameraReady(true)}
                 onCanPlay={() => setCameraReady(true)}
-                className="w-full h-full object-cover rounded-sm bg-[#6B4227]"
+                className="w-full h-full object-cover rounded-sm bg-[#6B4227] scale-x-[-1]"
               />
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element */

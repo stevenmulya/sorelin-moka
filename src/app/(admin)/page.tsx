@@ -56,7 +56,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <AutoRefresh seconds={15} />
+      <AutoRefresh seconds={12} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         {/* Left Column: Waiting Payment */}

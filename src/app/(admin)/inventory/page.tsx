@@ -41,7 +41,16 @@ export default async function InventoryPage({
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, stock: true },
+      select: {
+        id: true,
+        name: true,
+        stock: true,
+        variants: {
+          where: { isActive: true },
+          orderBy: { priority: 'asc' },
+          select: { id: true, name: true, stock: true },
+        },
+      },
     }),
     prisma.product.count({ where: whereClause }),
     prisma.inventoryLog.findMany({
@@ -58,7 +67,11 @@ export default async function InventoryPage({
   const products = await prisma.product.findMany({
     where: whereClause,
     orderBy: { name: 'asc' },
-    include: { type: true, variant: true },
+    include: {
+      type: true,
+      variant: true,
+      variants: { where: { isActive: true }, orderBy: { priority: 'asc' } },
+    },
     take,
     skip,
   });
@@ -132,6 +145,31 @@ export default async function InventoryPage({
                       {product.variant?.name || 'No Variant'}
                     </span>
                   </div>
+
+                  {product.variants && product.variants.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-[#E5D5BC]/50 space-y-1.5">
+                      <p className="text-[10px] font-bold text-[#8E6D53] uppercase tracking-wider">
+                        Tray Stock by Flavor
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {product.variants.map((v) => (
+                          <div
+                            key={v.id}
+                            className="flex items-center justify-between px-2 py-1 bg-[#FAF0DA]/50 rounded-lg border border-[#E5D5BC]/60 text-xs"
+                          >
+                            <span className="font-semibold text-[#3F2311] truncate">{v.name}</span>
+                            <span
+                              className={`font-bold ml-1 ${
+                                v.stock <= 5 ? 'text-red-700' : 'text-[#6B4227]'
+                              }`}
+                            >
+                              {v.stock}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-[#E5D5BC]/60 pt-4">
                   <span className="text-sm font-semibold text-[#8E6D53]">Stock Quantity</span>
@@ -161,6 +199,8 @@ export default async function InventoryPage({
             pageSize={take}
           />
         </div>
+
+        
       </div>
     </div>
   );

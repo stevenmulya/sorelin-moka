@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Clock, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { generateTrxCode, formatRupiah } from '@/lib/utils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export interface WaitingPaymentItem {
   id: number;
@@ -13,9 +14,58 @@ export interface WaitingPaymentItem {
   selfieUrl?: string | null;
 }
 
+function playOrderChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.12);
+    gain2.gain.setValueAtTime(0.18, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.55);
+  } catch {
+    // Ignore audio autoplay restrictions
+  }
+}
+
 export default function WaitingPaymentWidget({ items }: { items: WaitingPaymentItem[] }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const prevCountRef = useRef(items.length);
   const displayItems = expanded ? items : items.slice(0, 5);
+
+  const handleManualRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
+  useEffect(() => {
+    if (items.length > prevCountRef.current) {
+      playOrderChime();
+    }
+    prevCountRef.current = items.length;
+  }, [items.length]);
 
   return (
     <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] overflow-hidden shadow-xs flex flex-col h-full min-h-[300px]">
@@ -23,6 +73,14 @@ export default function WaitingPaymentWidget({ items }: { items: WaitingPaymentI
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-[#C88A32]" />
           <h3 className="font-bold text-[#3F2311] text-sm">Waiting Payment</h3>
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            className="p-1 text-[#8E6D53] hover:text-[#6B4227] hover:bg-[#FAF0DA] rounded-lg transition-all cursor-pointer"
+            title="Refresh order queue"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#6B4227]' : ''}`} />
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <span className="bg-[#F3DBAA] text-[#3F2311] border border-[#E5D5BC] text-xs font-semibold px-2 py-0.5 rounded-full">

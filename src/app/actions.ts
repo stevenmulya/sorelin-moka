@@ -22,6 +22,7 @@ import {
   editPaymentService,
 } from '@/lib/services/orders'
 import {
+  clearAllTransactionsAndShiftsService,
   closeShiftService,
   createExpenseService,
   deleteExpenseService,
@@ -36,6 +37,11 @@ import {
   reorderPrioritiesService,
   updateProductService,
 } from '@/lib/services/products'
+import {
+  createCategoryService,
+  updateCategoryService,
+  deleteCategoryService,
+} from '@/lib/services/categories'
 
 /**
  * Security note: every admin action invokes requireAdmin() on its first line.
@@ -112,7 +118,12 @@ export async function cancelTransaction(formData: FormData): Promise<ActionResul
   let id: number
   try {
     id = requireInteger(formData.get('transactionId') as string, 'Transaction ID', { min: 1 })
-    await cancelOrderService({ transactionId: id, reason: String(formData.get('cancelReason') ?? '') })
+    const refundFromCashDrawer = formData.get('refundFromCashDrawer') === 'true'
+    await cancelOrderService({
+      transactionId: id,
+      reason: String(formData.get('cancelReason') ?? ''),
+      refundFromCashDrawer,
+    })
   } catch (e) {
     return fail(e)
   }
@@ -308,13 +319,60 @@ export async function updatePriorities(orderedIds: number[]): Promise<ActionResu
   revalidatePath('/kiosk')
 }
 
+// ============================ CATEGORIES ============================
+
+export async function createCategory(formData: FormData): Promise<ActionResult> {
+  await requireAdmin()
+  try {
+    await createCategoryService(formData.get('name'))
+  } catch (e) {
+    return fail(e)
+  }
+  revalidatePath('/categories')
+  revalidatePath('/products')
+  revalidatePath('/bundles')
+  revalidatePath('/kiosk')
+}
+
+export async function updateCategory(formData: FormData): Promise<ActionResult> {
+  await requireAdmin()
+  try {
+    const id = requireInteger(formData.get('id') as string, 'Category ID', { min: 1 })
+    await updateCategoryService(id, formData.get('name'))
+  } catch (e) {
+    return fail(e)
+  }
+  revalidatePath('/categories')
+  revalidatePath('/products')
+  revalidatePath('/bundles')
+  revalidatePath('/kiosk')
+}
+
+export async function deleteCategory(formData: FormData): Promise<ActionResult> {
+  await requireAdmin()
+  try {
+    const id = requireInteger(formData.get('id') as string, 'Category ID', { min: 1 })
+    await deleteCategoryService(id)
+  } catch (e) {
+    return fail(e)
+  }
+  revalidatePath('/categories')
+  revalidatePath('/products')
+  revalidatePath('/bundles')
+  revalidatePath('/kiosk')
+}
+
 // ============================ STOCK ============================
 
 export async function adjustStock(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   try {
+    const variantIdRaw = formData.get('variantOptionId')
+    const variantOptionId = variantIdRaw ? parseInteger(variantIdRaw as string, { min: 1 }) : null
+
     await adjustStockService({
       productId: requireInteger(formData.get('productId') as string, 'Product', { min: 1 }),
+      variantOptionId,
       type: String(formData.get('type') ?? ''),
       quantity: formData.get('quantity'),
       giver: String(formData.get('giver') ?? ''),
@@ -397,6 +455,72 @@ export async function closeShift(formData: FormData): Promise<ActionResult> {
   redirect('/shift')
 }
 
+export async function clearAllTransactionsAndShifts(formData: FormData): Promise<ActionResult> {
+  await requireAdmin()
+  try {
+    const adminPass = (typeof formData.get('adminPassword') === 'string' ? (formData.get('adminPassword') as string) : '').trim()
+    const expectedPass = process.env.ADMIN_PASSWORD || 'sorelin'
+    if (!adminPass || adminPass !== expectedPass) {
+      throw new UserError('Incorrect admin password. System reset aborted.')
+    }
+
+    const confirmText = cleanStr(formData.get('confirmText'), 20).toUpperCase()
+    if (confirmText !== 'DELETE' && confirmText !== 'HAPUS' && confirmText !== 'RESET') {
+      throw new UserError('Type "DELETE" to confirm data purge.')
+    }
+
+    // Parse checklist values
+    const resetTransactions = formData.get('resetTransactions') === 'true' || formData.get('resetTransactions') === 'on'
+    const resetShifts = formData.get('resetShifts') === 'true' || formData.get('resetShifts') === 'on'
+    const resetStock = formData.get('resetStock') === 'true' || formData.get('resetStock') === 'on'
+    const resetProducts = formData.get('resetProducts') === 'true' || formData.get('resetProducts') === 'on'
+    const resetExpenses = formData.get('resetExpenses') === 'true' || formData.get('resetExpenses') === 'on'
+    const resetInventoryLogs = formData.get('resetInventoryLogs') === 'true' || formData.get('resetInventoryLogs') === 'on'
+    const resetSelfies = formData.get('resetSelfies') === 'true' || formData.get('resetSelfies') === 'on'
+
+    const anySelected =
+      resetTransactions ||
+      resetShifts ||
+      resetStock ||
+      resetProducts ||
+      resetExpenses ||
+      resetInventoryLogs ||
+      resetSelfies
+
+    if (!anySelected) {
+      throw new UserError('Select at least one data category to purge.')
+    }
+
+    await clearAllTransactionsAndShiftsService({
+      transactions: resetTransactions,
+      shifts: resetShifts,
+      stock: resetStock,
+      products: resetProducts,
+      expenses: resetExpenses,
+      inventoryLogs: resetInventoryLogs,
+      selfies: resetSelfies,
+    })
+  } catch (e) {
+    return fail(e)
+  }
+
+  revalidatePath('/shift')
+  revalidatePath('/shifts')
+  revalidatePath('/transactions')
+  revalidatePath('/orders')
+  revalidatePath('/report')
+  revalidatePath('/customers')
+  revalidatePath('/inventory')
+  revalidatePath('/products')
+  revalidatePath('/bundles')
+  revalidatePath('/categories')
+  revalidatePath('/expenses')
+  revalidatePath('/reset')
+  revalidatePath('/kiosk')
+  revalidatePath('/')
+  redirect('/shift')
+}
+
 // ============================ AUTH ============================
 
 export async function loginAction(formData: FormData) {
@@ -416,7 +540,15 @@ export async function logoutAction() {
 export async function submitKioskOrder(data: {
   customerName: string
   customerEmail: string
-  items: { productId: number; quantity: number }[]
+  items: {
+    productId: number
+    quantity: number
+    variantOptionId?: number | null
+    selectedVariant?: string | null
+    isBundle?: boolean
+    bundleContents?: string | null
+    notes?: string | null
+  }[]
   photoBase64: string
 }): Promise<{ success: true; transactionId: number; transactionCode: string } | { success: false; error: string }> {
   await requireAnyRole()

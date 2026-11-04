@@ -11,6 +11,10 @@ export interface KanbanOrderItem {
   productName: string;
   quantity: number;
   price: number;
+  selectedVariant?: string | null;
+  isBundle?: boolean;
+  bundleContents?: string | null;
+  notes?: string | null;
 }
 
 export interface KanbanOrder {
@@ -391,13 +395,32 @@ export default function DashboardKanban({ initialOrders }: { initialOrders: Kanb
                   {viewItemsModal.order.items.map((item: KanbanOrderItem) => (
                     <div
                       key={item.id}
-                      className="flex justify-between items-center text-sm border-b border-[#E5D5BC]/50 pb-2"
+                      className="flex justify-between items-start text-sm border-b border-[#E5D5BC]/50 pb-2.5 last:border-b-0 last:pb-0"
                     >
-                      <div>
-                        <span className="font-bold text-[#6B4227]">{item.quantity}x</span>
-                        <span className="ml-2 font-medium text-[#3F2311]">{item.productName}</span>
+                      <div className="flex-1 pr-2">
+                        <div>
+                          <span className="font-bold text-[#6B4227]">{item.quantity}x</span>
+                          <span className="ml-2 font-medium text-[#3F2311]">{item.productName}</span>
+                        </div>
+                        {item.selectedVariant && (
+                          <div className="mt-0.5">
+                            <span className="inline-block px-1.5 py-0.2 text-[10px] font-bold bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] rounded-xs">
+                              Flavor: {item.selectedVariant}
+                            </span>
+                          </div>
+                        )}
+                        {item.isBundle && item.bundleContents && (
+                          <div className="text-[11px] text-[#6B4227] bg-[#FAF0DA]/70 p-1 rounded-xs border border-[#E5D5BC] mt-1 font-medium">
+                            📦 Bundle: {item.bundleContents}
+                          </div>
+                        )}
+                        {item.notes && (
+                          <div className="text-[10px] italic text-[#8E6D53] mt-0.5">
+                            Note: &ldquo;{item.notes}&rdquo;
+                          </div>
+                        )}
                       </div>
-                      <span className="text-[#8E6D53] font-semibold text-xs">
+                      <span className="text-[#8E6D53] font-semibold text-xs whitespace-nowrap">
                         {formatRupiah(item.price * item.quantity)}
                       </span>
                     </div>

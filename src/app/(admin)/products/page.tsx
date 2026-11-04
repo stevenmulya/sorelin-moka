@@ -26,6 +26,7 @@ export default async function ProductsPage({
 
   const where: Prisma.ProductWhereInput = {
     isActive: true,
+    isBundle: false,
     ...(q
       ? {
           OR: [
@@ -47,18 +48,25 @@ export default async function ProductsPage({
   if (sort === 'newest') orderBy = [{ createdAt: 'desc' }, { id: 'desc' }];
   if (sort === 'oldest') orderBy = [{ createdAt: 'asc' }, { id: 'asc' }];
 
-  const totalItems = await prisma.product.count({ where });
+  const skip = (rawPage - 1) * take;
+
+  const [totalItems, products] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      orderBy,
+      take,
+      skip,
+      include: {
+        type: true,
+        images: true,
+        variants: { where: { isActive: true }, orderBy: { priority: 'asc' } },
+      },
+    }),
+  ]);
+
   const totalPages = Math.ceil(totalItems / take) || 1;
   const page = Math.min(rawPage, totalPages);
-  const skip = (page - 1) * take;
-
-  const products = await prisma.product.findMany({
-    where,
-    orderBy,
-    take,
-    skip,
-    include: { type: true, variant: true, images: true },
-  });
 
   const canReorder = sort === 'priorities' && !q;
 
@@ -66,15 +74,28 @@ export default async function ProductsPage({
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#6B4227] tracking-tight">Product Catalog</h1>
+          <h1 className="text-2xl font-semibold text-[#6B4227] tracking-tight">Product Catalog</h1>
           <p className="text-sm text-[#8E6D53] mt-1">Manage your catalog, variants, and priority ordering.</p>
         </div>
         <Link
           href="/products/new"
           className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#6B4227] text-[#FAF0DA] rounded-xl font-semibold text-sm hover:bg-[#54311B] transition-colors shadow-xs"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" strokeWidth={1.5} />
           Add Product
+        </Link>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-[#E5D5BC] pb-3">
+        <span className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-[#6B4227] text-[#FAF0DA] shadow-xs">
+          Single Products ({totalItems})
+        </span>
+        <Link
+          href="/bundles"
+          className="px-4 py-1.5 text-xs font-semibold rounded-xl text-[#8E6D53] hover:text-[#6B4227] hover:bg-[#FAF0DA] transition-colors"
+        >
+          Bundles & Packages
         </Link>
       </div>
 
@@ -85,7 +106,7 @@ export default async function ProductsPage({
           className="p-4 border-b border-[#E5D5BC] flex flex-col sm:flex-row items-center gap-4 bg-[#FAF0DA]/60"
         >
           <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9E826B]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9E826B]" strokeWidth={1.5} />
             <input
               type="text"
               name="q"
@@ -105,7 +126,7 @@ export default async function ProductsPage({
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
               </select>
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8E6D53]" />
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8E6D53]" strokeWidth={1.5} />
             </div>
             <button
               type="submit"

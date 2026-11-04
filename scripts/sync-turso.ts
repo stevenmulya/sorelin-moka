@@ -71,6 +71,9 @@ async function syncTurso() {
       "discountPrice" INTEGER,
       "stock" INTEGER NOT NULL DEFAULT 0,
       "priority" INTEGER NOT NULL DEFAULT 0,
+      "availableVariants" TEXT,
+      "isBundle" BOOLEAN NOT NULL DEFAULT false,
+      "bundleQuota" INTEGER,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL,
       CONSTRAINT "Product_typeId_fkey" FOREIGN KEY ("typeId") REFERENCES "ProductType" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -133,8 +136,29 @@ async function syncTurso() {
       "quantity" INTEGER NOT NULL,
       "price" INTEGER NOT NULL,
       "costPrice" INTEGER NOT NULL DEFAULT 0,
+      "variantOptionId" INTEGER,
+      "selectedVariant" TEXT,
+      "isBundle" BOOLEAN NOT NULL DEFAULT false,
+      "bundleContents" TEXT,
+      "notes" TEXT,
       CONSTRAINT "TransactionItem_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "Transaction" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     );`,
+    `CREATE TABLE IF NOT EXISTS "ProductVariantOption" (
+      "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "productId" INTEGER NOT NULL,
+      "name" TEXT NOT NULL,
+      "price" INTEGER NOT NULL,
+      "costPrice" INTEGER NOT NULL DEFAULT 0,
+      "stock" INTEGER NOT NULL DEFAULT 0,
+      "bundleUpcharge" INTEGER NOT NULL DEFAULT 0,
+      "priority" INTEGER NOT NULL DEFAULT 0,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      CONSTRAINT "ProductVariantOption_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );`,
+    `CREATE INDEX IF NOT EXISTS "ProductVariantOption_productId_isActive_idx" ON "ProductVariantOption"("productId", "isActive");`,
+    `CREATE INDEX IF NOT EXISTS "TransactionItem_variantOptionId_idx" ON "TransactionItem"("variantOptionId");`,
     `CREATE TABLE IF NOT EXISTS "InventoryLog" (
       "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       "productId" INTEGER NOT NULL,
@@ -198,8 +222,8 @@ async function syncTurso() {
 
     for (const p of localProducts.rows) {
       await tursoClient.execute({
-        sql: `INSERT OR REPLACE INTO Product (id, name, typeId, variantId, description, isBestSeller, isFavorite, isActive, costPrice, price, discountPrice, stock, priority, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO Product (id, name, typeId, variantId, description, isBestSeller, isFavorite, isActive, costPrice, price, discountPrice, stock, priority, availableVariants, isBundle, bundleQuota, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           p.id,
           p.name,
@@ -214,6 +238,9 @@ async function syncTurso() {
           p.discountPrice,
           p.stock,
           p.priority,
+          p.availableVariants,
+          p.isBundle,
+          p.bundleQuota,
           p.createdAt,
           p.updatedAt,
         ],

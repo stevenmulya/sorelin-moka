@@ -34,8 +34,8 @@ export default async function KioskPage() {
     where: { isActive: true },
     include: {
       type: true,
-      variant: true,
       images: true,
+      variants: { where: { isActive: true }, orderBy: { priority: 'asc' } },
     },
     orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
   });

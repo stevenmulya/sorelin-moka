@@ -5,14 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "dev:host": "next dev -H 0.0.0.0",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build --webpack",
     "postinstall": "prisma generate",
     "start": "next start",
     "start:host": "next start -H 0.0.0.0",
     "lint": "eslint",
     "clean:uploads": "tsx scripts/clean-uploads.ts",
     "db:turso:sync": "tsx scripts/sync-turso.ts",
-    "db:reset": "tsx scripts/reset-db.ts"
+    "db:reset": "tsx scripts/reset-db.ts",
+    "test:flow": "tsx scripts/test-full-bazaar-flow.ts",
+    "test:audit": "tsx scripts/test-bazaar-production-readiness.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.8.0",

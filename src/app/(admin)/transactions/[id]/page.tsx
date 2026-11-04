@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { ArrowLeft, User, ShoppingBag, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, User, ShoppingBag, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { generateTrxCode, formatRupiah } from '@/lib/utils';
@@ -63,7 +63,14 @@ export default async function TransactionDetail(props: {
         </div>
 
         {trx.status !== STATUS.WAITING && trx.status !== STATUS.CANCELLED && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#6B4227] text-[#FAF0DA] text-sm font-semibold rounded-xl hover:bg-[#54311B] transition-colors shadow-xs"
+            >
+              <span>Next Order</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
             <PrintReceiptButton trx={trx} autoPrint={autoPrint} />
           </div>
         )}
@@ -95,7 +102,24 @@ export default async function TransactionDetail(props: {
                 <tbody className="divide-y divide-[#E5D5BC]/60">
                   {trx.items.map((item) => (
                     <tr key={item.id} className="hover:bg-[#FAF0DA]/60 transition-colors">
-                      <td className="px-5 py-3.5 font-semibold text-[#3F2311]">{item.productName}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="font-semibold text-[#3F2311]">{item.productName}</div>
+                        {item.selectedVariant && (
+                          <span className="inline-block px-1.5 py-0.5 text-xs font-semibold bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] rounded-sm mt-1">
+                            Flavor: {item.selectedVariant}
+                          </span>
+                        )}
+                        {item.isBundle && item.bundleContents && (
+                          <div className="text-xs text-[#6B4227] bg-[#FAF0DA]/70 p-1.5 rounded-sm border border-[#E5D5BC] mt-1 font-medium">
+                            📦 Bundle: {item.bundleContents}
+                          </div>
+                        )}
+                        {item.notes && (
+                          <div className="text-xs italic text-[#8E6D53] mt-0.5">
+                            Note: &ldquo;{item.notes}&rdquo;
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3.5 text-right text-[#8E6D53]">{formatRupiah(item.price)}</td>
                       <td className="px-4 py-3.5 text-center font-bold text-[#6B4227]">{item.quantity}</td>
                       <td className="px-5 py-3.5 text-right font-bold text-[#6B4227]">

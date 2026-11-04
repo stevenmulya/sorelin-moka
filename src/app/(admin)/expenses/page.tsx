@@ -88,30 +88,18 @@ export default async function ExpensesPage({
               name="name"
               required
               maxLength={100}
-              placeholder="e.g. Ice, Gas, Milk, Rent, Internet"
+              placeholder="Enter expense description"
               className="w-full px-3.5 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227]"
             />
           </div>
-          <div className="w-full md:w-44">
-            <label className="block text-xs font-semibold text-[#8E6D53] mb-1.5">Paid From</label>
-            <select
-              name="paymentMethod"
-              defaultValue="Cash"
-              className="w-full px-3.5 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#3F2311] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227]"
-            >
-              <option value="Cash">Cash Drawer</option>
-              <option value="Transfer">Bank Transfer</option>
-              <option value="Owner">Owner Funds</option>
-            </select>
-          </div>
-          <div className="w-full md:w-44">
+          <div className="w-full md:w-56">
             <label className="block text-xs font-semibold text-[#8E6D53] mb-1.5">Total Cost (Rp)</label>
             <input
               type="number"
               name="amount"
               required
               min={1}
-              placeholder="50000"
+              placeholder="Enter total cost"
               className="w-full px-3.5 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227]"
             />
           </div>
@@ -128,7 +116,6 @@ export default async function ExpensesPage({
             <thead className="bg-[#FAF0DA] text-[#8E6D53] font-semibold text-xs border-b border-[#E5D5BC]">
               <tr>
                 <th className="px-5 py-3.5">Expense Name</th>
-                <th className="px-5 py-3.5">Paid From</th>
                 <th className="px-5 py-3.5">Date Recorded</th>
                 <th className="px-5 py-3.5">Amount</th>
                 <th className="px-5 py-3.5"></th>
@@ -139,23 +126,6 @@ export default async function ExpensesPage({
                 activeExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-[#FAF0DA]/60 transition-colors">
                     <td className="px-5 py-3.5 font-semibold text-[#3F2311]">{exp.name}</td>
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          exp.paymentMethod === 'Cash'
-                            ? 'bg-[#FEF6E7] text-[#9E7324] border border-[#F3DBAA]'
-                            : exp.paymentMethod === 'Transfer'
-                              ? 'bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]'
-                              : 'bg-[#FAF5FF] text-[#7E22CE] border border-[#E9D5FF]'
-                        }`}
-                      >
-                        {exp.paymentMethod === 'Cash'
-                          ? 'Cash Drawer'
-                          : exp.paymentMethod === 'Transfer'
-                            ? 'Bank Transfer'
-                            : 'Owner Funds'}
-                      </span>
-                    </td>
                     <td className="px-5 py-3.5 text-[#8E6D53]">{formatWibDate(exp.createdAt)}</td>
                     <td className="px-5 py-3.5 font-bold text-red-600">- {formatRupiah(exp.amount)}</td>
                     <td className="px-5 py-3.5 text-right">
@@ -174,7 +144,7 @@ export default async function ExpensesPage({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-[#8E6D53]">
+                  <td colSpan={4} className="px-5 py-12 text-center text-[#8E6D53]">
                     {view === 'shift' && where.shiftId === -1
                       ? "No active shift is currently running. Start a shift first, or switch to 'View All' to view history."
                       : 'No operational expenses recorded.'}

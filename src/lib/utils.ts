@@ -7,9 +7,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Centralized Indonesian Rupiah currency formatter (e.g. Rp 15.000). */
+/** Centralized Indonesian Rupiah currency formatter (e.g. Rp 15.000 or -Rp 50.000). */
 export function formatRupiah(amount: number | null | undefined): string {
   if (typeof amount !== 'number' || isNaN(amount)) return 'Rp 0';
+  if (amount < 0) return `-Rp ${Math.abs(Math.round(amount)).toLocaleString('id-ID')}`;
   return `Rp ${Math.round(amount).toLocaleString('id-ID')}`;
 }
 

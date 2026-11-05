@@ -63,7 +63,10 @@ export default function ProductForm({
     }
     return 0;
   })();
-  const [discountPercent, setDiscountPercent] = useState<number>(initialDiscountPercent);
+  const [discountPercentRaw, setDiscountPercentRaw] = useState<string>(
+    initialDiscountPercent > 0 ? String(initialDiscountPercent) : ''
+  );
+  const discountPercent = Math.min(99, Math.max(0, Math.round(Number(discountPercentRaw) || 0)));
 
   // Live computed final price and savings
   const finalDiscountPrice =
@@ -266,11 +269,8 @@ export default function ProductForm({
                     <input
                       type="number"
                       name="discountPercent"
-                      value={discountPercent || ''}
-                      onChange={(e) => {
-                        const val = Math.min(99, Math.max(0, Number(e.target.value)));
-                        setDiscountPercent(val);
-                      }}
+                      value={discountPercentRaw}
+                      onChange={(e) => setDiscountPercentRaw(e.target.value)}
                       min={0}
                       max={99}
                       placeholder="Enter discount percentage"

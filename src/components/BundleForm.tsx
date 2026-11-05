@@ -141,10 +141,10 @@ export default function BundleForm({
 
   // Initial Nominal Discount Amount (Rp)
   const [discountAmountRaw, setDiscountAmountRaw] = useState<string>(() => {
-    if (typeof parsedInitialConfig.discountAmount === 'number') {
+    if (typeof parsedInitialConfig.discountAmount === 'number' && parsedInitialConfig.discountAmount > 0) {
       return String(parsedInitialConfig.discountAmount);
     }
-    return '0';
+    return '';
   });
   const discountAmount = Math.max(0, Math.round(Number(discountAmountRaw) || 0));
 
@@ -161,14 +161,16 @@ export default function BundleForm({
     );
   }, [slots, pricingMode, fixedPrice, discountAmount, availableProducts]);
 
-  // Add Slot Form State
+  // Add Slot Form State (stored as raw strings so inputs can be freely cleared with backspace)
   const [newSlotMode, setNewSlotMode] = useState<'PRODUCT' | 'CUSTOM_OPTIONS' | 'CATEGORY'>('PRODUCT');
   const [newCategoryName, setNewCategoryName] = useState<string>(validCategories[0]?.name || '');
-  const [newQuota, setNewQuota] = useState<number>(1);
+  const [newQuotaRaw, setNewQuotaRaw] = useState<string>('1');
+  const newQuota = Math.max(1, parseInt(newQuotaRaw, 10) || 1);
   const [newCustomLabel, setNewCustomLabel] = useState<string>('');
   const [selectedCustomProducts, setSelectedCustomProducts] = useState<string[]>([]);
   const [newProductName, setNewProductName] = useState<string>(availableProducts[0]?.name || '');
-  const [newQuantity, setNewQuantity] = useState<number>(1);
+  const [newQuantityRaw, setNewQuantityRaw] = useState<string>('1');
+  const newQuantity = Math.max(1, parseInt(newQuantityRaw, 10) || 1);
   const [isAddingSlot, setIsAddingSlot] = useState<boolean>(false);
 
   // Previews for the new slot form (exact min-max ranges, never misleading averages)
@@ -297,6 +299,8 @@ export default function BundleForm({
         ];
       });
     }
+    setNewQuantityRaw('1');
+    setNewQuotaRaw('1');
     setIsAddingSlot(false);
   };
 
@@ -540,8 +544,8 @@ export default function BundleForm({
                           </label>
                           <input
                             type="number"
-                            value={newQuantity}
-                            onChange={(e) => setNewQuantity(Math.max(1, Number(e.target.value)))}
+                            value={newQuantityRaw}
+                            onChange={(e) => setNewQuantityRaw(e.target.value)}
                             min={1}
                             max={20}
                             placeholder="Enter item quantity"
@@ -582,8 +586,8 @@ export default function BundleForm({
                           </label>
                           <input
                             type="number"
-                            value={newQuota}
-                            onChange={(e) => setNewQuota(Math.max(1, Number(e.target.value)))}
+                            value={newQuotaRaw}
+                            onChange={(e) => setNewQuotaRaw(e.target.value)}
                             min={1}
                             max={20}
                             placeholder="Enter choice quota"
@@ -681,8 +685,8 @@ export default function BundleForm({
                           </label>
                           <input
                             type="number"
-                            value={newQuota}
-                            onChange={(e) => setNewQuota(Math.max(1, Number(e.target.value)))}
+                            value={newQuotaRaw}
+                            onChange={(e) => setNewQuotaRaw(e.target.value)}
                             min={1}
                             max={20}
                             placeholder="Enter choice quota"
@@ -958,7 +962,6 @@ export default function BundleForm({
                       value={fixedPriceRaw}
                       onChange={(e) => setFixedPriceRaw(e.target.value)}
                       min={1}
-                      step={500}
                       required
                       placeholder="Enter fixed bundle price"
                       className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
@@ -977,7 +980,6 @@ export default function BundleForm({
                       value={discountAmountRaw}
                       onChange={(e) => setDiscountAmountRaw(e.target.value)}
                       min={0}
-                      step={500}
                       placeholder="Enter discount amount"
                       className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                     />

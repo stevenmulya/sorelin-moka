@@ -121,6 +121,7 @@ export default function InventoryAdjuster({ products }: { products: Product[] })
               type="number"
               name="quantity"
               min={activeTab === 'RESET' ? 0 : 1}
+              placeholder="Enter stock quantity"
               required
               className="w-full px-3.5 py-2.5 bg-[#FAF0DA] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:bg-[#FFFDF8] transition-all font-semibold"
             />

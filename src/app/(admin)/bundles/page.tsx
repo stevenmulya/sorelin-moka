@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Plus, Search, Layers, Edit2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatRupiah } from '@/lib/utils';
-import { parseBundleConfig } from '@/lib/bundle-config';
+import { parseBundleConfig, getBundleMaxStock } from '@/lib/bundle-config';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';
 import { deleteProduct } from '@/app/actions';
 
@@ -19,17 +19,23 @@ export default async function BundlesPage({
   const resolvedParams = await searchParams;
   const q = resolvedParams.q?.trim() || '';
 
-  const bundles = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      isBundle: true,
-      ...(q ? { name: { contains: q } } : {}),
-    },
-    include: {
-      images: true,
-    },
-    orderBy: { priority: 'desc' },
-  });
+  const [bundles, singleProducts] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        isActive: true,
+        isBundle: true,
+        ...(q ? { name: { contains: q } } : {}),
+      },
+      include: {
+        images: true,
+      },
+      orderBy: { priority: 'desc' },
+    }),
+    prisma.product.findMany({
+      where: { isActive: true, isBundle: false },
+      include: { type: true },
+    }),
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -74,7 +80,7 @@ export default async function BundlesPage({
               type="text"
               name="q"
               defaultValue={q}
-              placeholder="Search bundles..."
+              placeholder="Enter bundle name"
               className="w-full pl-9 pr-4 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] transition-all"
             />
           </div>
@@ -86,6 +92,7 @@ export default async function BundlesPage({
               <tr>
                 <th className="px-5 py-3.5">Bundle Name</th>
                 <th className="px-5 py-3.5">Slot Rules & Composition</th>
+                <th className="px-5 py-3.5">Connected Stock</th>
                 <th className="px-5 py-3.5 text-right">Package Price</th>
                 <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
@@ -93,6 +100,7 @@ export default async function BundlesPage({
             <tbody className="divide-y divide-[#E5D5BC]/60">
               {bundles.map((bundle) => {
                 const config = parseBundleConfig(bundle.availableVariants);
+                const maxStock = getBundleMaxStock(bundle, singleProducts);
 
                 return (
                   <tr key={bundle.id} className="hover:bg-[#FAF0DA]/40 transition-colors">
@@ -151,6 +159,20 @@ export default async function BundlesPage({
                       </div>
                     </td>
 
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                          maxStock > 0
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-red-50 text-red-700 border-red-200'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${maxStock > 0 ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        {maxStock > 0 ? `${maxStock} sets available` : 'Out of Stock'}
+                      </span>
+                      <div className="text-[11px] text-[#8E6D53] mt-0.5">Linked to product stock</div>
+                    </td>
+
                     <td className="px-5 py-3.5 text-right">
                       {bundle.discountPrice ? (
                         <div>
@@ -195,7 +217,7 @@ export default async function BundlesPage({
 
               {bundles.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-[#8E6D53]">
+                  <td colSpan={5} className="px-6 py-12 text-center text-[#8E6D53]">
                     No bundles found. Click &quot;Create Bundle&quot; to build your first combo package.
                   </td>
                 </tr>

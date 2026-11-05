@@ -111,7 +111,7 @@ export default async function ProductsPage({
               type="text"
               name="q"
               defaultValue={q}
-              placeholder="Search products..."
+              placeholder="Enter product name"
               className="w-full pl-9 pr-4 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] transition-all"
             />
           </div>

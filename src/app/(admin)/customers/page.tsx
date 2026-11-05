@@ -90,7 +90,7 @@ export default async function CustomersPage({
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Search customers..."
+            placeholder="Enter customer name"
             className="w-full pl-9 pr-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227]"
           />
           <Search className="h-4 w-4 text-[#9E826B] absolute left-3 top-1/2 -translate-y-1/2" />

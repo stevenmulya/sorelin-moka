@@ -43,7 +43,7 @@ export type ShiftMetadataRows = {
 
 function parseFlavors(contents?: string | null): Array<{ flavorName: string; quantity: number }> {
   if (!contents) return [];
-  const results: Array<{ flavorName: string; quantity: number }> = [];
+  const merged = new Map<string, { flavorName: string; quantity: number }>();
   const clean = contents
     .replace(/\(\+[^)]+\)/g, '')
     .replace(/\(include\)/gi, '')
@@ -51,19 +51,28 @@ function parseFlavors(contents?: string | null): Array<{ flavorName: string; qua
     .trim();
   const parts = clean.split(/[,+]|(?:\s*\+\s*)/).map((p) => p.trim()).filter(Boolean);
   for (const part of parts) {
+    let qty = 1;
+    let name = '';
     const prefixMatch = part.match(/^\(?(\d+)\s*x\)?\s*(.+)$/i);
     if (prefixMatch) {
-      results.push({ quantity: parseInt(prefixMatch[1], 10), flavorName: prefixMatch[2].replace(/[()]/g, '').trim() });
-      continue;
+      qty = Math.max(1, parseInt(prefixMatch[1], 10));
+      name = prefixMatch[2].replace(/[()]/g, '').trim();
+    } else {
+      const suffixMatch = part.match(/^(.+?)\s*\(?(\d+)\s*x\)?$/i);
+      if (suffixMatch) {
+        qty = Math.max(1, parseInt(suffixMatch[2], 10));
+        name = suffixMatch[1].replace(/[()]/g, '').trim();
+      } else {
+        name = part.replace(/[()]/g, '').trim();
+      }
     }
-    const suffixMatch = part.match(/^(.+?)\s*\(?(\d+)\s*x\)?$/i);
-    if (suffixMatch) {
-      results.push({ quantity: parseInt(suffixMatch[2], 10), flavorName: suffixMatch[1].replace(/[()]/g, '').trim() });
-      continue;
-    }
-    results.push({ quantity: 1, flavorName: part.replace(/[()]/g, '').trim() });
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const ex = merged.get(key);
+    if (ex) ex.quantity += qty;
+    else merged.set(key, { flavorName: name, quantity: qty });
   }
-  return results;
+  return Array.from(merged.values());
 }
 
 export async function buildTransactionsExcelBuffer(options: {
@@ -93,17 +102,18 @@ export async function buildTransactionsExcelBuffer(options: {
   // Track flavor-level physical units (single sales + bundle contents)
   const flavorSalesMap = new Map<
     string,
-    { singleQty: number; bundleQty: number; totalQty: number }
+    { displayName: string; singleQty: number; bundleQty: number; totalQty: number }
   >();
 
   const rows: Record<string, string | number>[] = [];
 
-  for (const trx of transactions) {
+  for (const trx of transactions ?? []) {
+    const safeItems = trx.items ?? [];
     const timeStr = formatWibTime(trx.createdAt);
     const dateStr = formatWibDate(trx.createdAt);
-    const itemsStr = trx.items
+    const itemsStr = safeItems
       .map((i) => {
-        let name = `${i.quantity}x ${i.productName}`;
+        let name = `${i.quantity}x ${i.productName || 'Unknown Product'}`;
         if (i.selectedVariant) name += ` (Flavor: ${i.selectedVariant})`;
         if (i.isBundle && i.bundleContents) name += ` [Bundle: ${i.bundleContents}]`;
         return name;
@@ -111,8 +121,8 @@ export async function buildTransactionsExcelBuffer(options: {
       .join('; ');
 
     let trxCogs = 0;
-    for (const item of trx.items) {
-      trxCogs += item.quantity * item.costPrice;
+    for (const item of safeItems) {
+      trxCogs += (item.quantity || 0) * (item.costPrice || 0);
     }
 
     const trxGrossProfit = trx.amount - trxCogs;
@@ -129,9 +139,9 @@ export async function buildTransactionsExcelBuffer(options: {
       else totalCashSales += trx.amount;
 
       // Aggregate Product Sales
-      for (const item of trx.items) {
+      for (const item of safeItems) {
         const pName = item.productName || 'Unknown Product';
-        const lineRev = (item.price ?? (trx.amount / (trx.items.length || 1))) * item.quantity;
+        const lineRev = (item.price ?? (trx.amount / (safeItems.length || 1))) * item.quantity;
         const lineCogs = item.costPrice * item.quantity;
 
         const currentP = productSalesMap.get(pName) || { qty: 0, revenue: 0, cogs: 0 };
@@ -140,24 +150,37 @@ export async function buildTransactionsExcelBuffer(options: {
         currentP.cogs += lineCogs;
         productSalesMap.set(pName, currentP);
 
-        // Aggregate Flavor Variants
-        if (item.selectedVariant) {
-          const fName = item.selectedVariant.trim();
-          const currentF = flavorSalesMap.get(fName) || { singleQty: 0, bundleQty: 0, totalQty: 0 };
+        // Aggregate Physical Item / Flavor Consumption (Single + Bundle Contents)
+        if (!item.isBundle) {
+          const rawName =
+            item.selectedVariant && item.selectedVariant.trim().toLowerCase() !== 'standard'
+              ? item.selectedVariant.trim()
+              : pName.trim();
+          const key = rawName.toLowerCase();
+          const currentF = flavorSalesMap.get(key) || {
+            displayName: rawName,
+            singleQty: 0,
+            bundleQty: 0,
+            totalQty: 0,
+          };
           currentF.singleQty += item.quantity;
           currentF.totalQty += item.quantity;
-          flavorSalesMap.set(fName, currentF);
-        }
-
-        if (item.isBundle && item.bundleContents) {
+          flavorSalesMap.set(key, currentF);
+        } else if (item.bundleContents) {
           const bundleFlavors = parseFlavors(item.bundleContents);
           for (const bf of bundleFlavors) {
-            const fName = bf.flavorName.trim();
+            const rawName = bf.flavorName.trim();
+            const key = rawName.toLowerCase();
             const needed = bf.quantity * item.quantity;
-            const currentF = flavorSalesMap.get(fName) || { singleQty: 0, bundleQty: 0, totalQty: 0 };
+            const currentF = flavorSalesMap.get(key) || {
+              displayName: rawName,
+              singleQty: 0,
+              bundleQty: 0,
+              totalQty: 0,
+            };
             currentF.bundleQty += needed;
             currentF.totalQty += needed;
-            flavorSalesMap.set(fName, currentF);
+            flavorSalesMap.set(key, currentF);
           }
         }
       }
@@ -265,113 +288,107 @@ export async function buildTransactionsExcelBuffer(options: {
     });
   });
 
-  if (productRows.length > 0) {
-    productRows.push({
-      No: '' as unknown as number,
-      'Product Name': 'TOTAL',
-      'Units Sold': sumProdQty,
-      'Total Revenue (Rp)': sumProdRev,
-      'Total COGS (Rp)': sumProdCogs,
-      'Gross Profit (Rp)': sumProdRev - sumProdCogs,
-      'Margin (%)': sumProdRev > 0 ? `${Math.round(((sumProdRev - sumProdCogs) / sumProdRev) * 100)}%` : '0%',
-    });
+  productRows.push({
+    No: '' as unknown as number,
+    'Product Name': 'TOTAL',
+    'Units Sold': sumProdQty,
+    'Total Revenue (Rp)': sumProdRev,
+    'Total COGS (Rp)': sumProdCogs,
+    'Gross Profit (Rp)': sumProdRev - sumProdCogs,
+    'Margin (%)': sumProdRev > 0 ? `${Math.round(((sumProdRev - sumProdCogs) / sumProdRev) * 100)}%` : '0%',
+  });
 
-    const prodWorksheet = XLSX.utils.json_to_sheet(productRows);
-    prodWorksheet['!cols'] = [
-      { wch: 6 },
-      { wch: 35 },
-      { wch: 14 },
-      { wch: 20 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 12 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, prodWorksheet, 'Product Sales');
-  }
+  const prodWorksheet = XLSX.utils.json_to_sheet(productRows);
+  prodWorksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 35 },
+    { wch: 14 },
+    { wch: 20 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 12 },
+  ];
+  XLSX.utils.book_append_sheet(workbook, prodWorksheet, 'Product Sales');
 
   // -------------------------------------------------------------
-  // Sheet 3: Variant Breakdown (Rekap Konsumsi Rasa Roti)
+  // Sheet 3: Variant Breakdown (Rekap Konsumsi Produk & Rasa)
   // -------------------------------------------------------------
   const flavorRows: Record<string, string | number>[] = [];
-  const sortedFlavors = Array.from(flavorSalesMap.entries()).sort((a, b) => b[1].totalQty - a[1].totalQty);
+  const sortedFlavors = Array.from(flavorSalesMap.values()).sort((a, b) => b.totalQty - a.totalQty);
 
   let sumFlavorSingle = 0;
   let sumFlavorBundle = 0;
   let sumFlavorTotal = 0;
 
-  sortedFlavors.forEach(([flavorName, data], idx) => {
+  sortedFlavors.forEach((data, idx) => {
     sumFlavorSingle += data.singleQty;
     sumFlavorBundle += data.bundleQty;
     sumFlavorTotal += data.totalQty;
 
     flavorRows.push({
       No: idx + 1,
-      'Flavor / Variant Name': flavorName,
+      'Flavor / Variant Name': data.displayName,
       'Single Items Sold (pcs)': data.singleQty,
       'Bundle Box Contents (pcs)': data.bundleQty,
       'TOTAL PIECES SOLD (pcs)': data.totalQty,
     });
   });
 
-  if (flavorRows.length > 0) {
-    flavorRows.push({
-      No: '' as unknown as number,
-      'Flavor / Variant Name': 'TOTAL BAKERY CONSUMPTION',
-      'Single Items Sold (pcs)': sumFlavorSingle,
-      'Bundle Box Contents (pcs)': sumFlavorBundle,
-      'TOTAL PIECES SOLD (pcs)': sumFlavorTotal,
-    });
+  flavorRows.push({
+    No: '' as unknown as number,
+    'Flavor / Variant Name': 'TOTAL BAKERY CONSUMPTION',
+    'Single Items Sold (pcs)': sumFlavorSingle,
+    'Bundle Box Contents (pcs)': sumFlavorBundle,
+    'TOTAL PIECES SOLD (pcs)': sumFlavorTotal,
+  });
 
-    const flavorWorksheet = XLSX.utils.json_to_sheet(flavorRows);
-    flavorWorksheet['!cols'] = [
-      { wch: 6 },
-      { wch: 32 },
-      { wch: 24 },
-      { wch: 26 },
-      { wch: 24 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, flavorWorksheet, 'Variant Breakdown');
-  }
+  const flavorWorksheet = XLSX.utils.json_to_sheet(flavorRows);
+  flavorWorksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 32 },
+    { wch: 24 },
+    { wch: 26 },
+    { wch: 24 },
+  ];
+  XLSX.utils.book_append_sheet(workbook, flavorWorksheet, 'Variant Breakdown');
 
   // -------------------------------------------------------------
   // Sheet 4: Expenses (Rincian Biaya Operasional)
   // -------------------------------------------------------------
-  if (expensesList && expensesList.length > 0) {
-    const expRows = expensesList.map((exp, idx) => ({
-      No: idx + 1,
-      'Expense ID': `#${exp.id}`,
-      Date: formatWibDate(exp.createdAt),
-      Time: formatWibTime(exp.createdAt),
-      Description: exp.name,
-      'Payment Method': exp.paymentMethod,
-      Amount: exp.amount,
-      Shift: exp.shiftId ? `#${exp.shiftId}` : '-',
-    }));
+  const expRows = (expensesList ?? []).map((exp, idx) => ({
+    No: idx + 1,
+    'Expense ID': `#${exp.id}`,
+    Date: formatWibDate(exp.createdAt),
+    Time: formatWibTime(exp.createdAt),
+    Description: exp.name,
+    'Payment Method': exp.paymentMethod,
+    Amount: exp.amount,
+    Shift: exp.shiftId ? `#${exp.shiftId}` : '-',
+  }));
 
-    expRows.push({
-      No: '' as unknown as number,
-      'Expense ID': '',
-      Date: '',
-      Time: '',
-      Description: 'TOTAL EXPENSES',
-      'Payment Method': '',
-      Amount: totalExpenses,
-      Shift: '',
-    });
+  expRows.push({
+    No: '' as unknown as number,
+    'Expense ID': '',
+    Date: '',
+    Time: '',
+    Description: 'TOTAL EXPENSES',
+    'Payment Method': '',
+    Amount: totalExpenses,
+    Shift: '',
+  });
 
-    const expWorksheet = XLSX.utils.json_to_sheet(expRows);
-    expWorksheet['!cols'] = [
-      { wch: 6 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 10 },
-      { wch: 32 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 10 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, expWorksheet, 'Expenses');
-  }
+  const expWorksheet = XLSX.utils.json_to_sheet(expRows);
+  expWorksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 32 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 10 },
+  ];
+  XLSX.utils.book_append_sheet(workbook, expWorksheet, 'Expenses');
 
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }

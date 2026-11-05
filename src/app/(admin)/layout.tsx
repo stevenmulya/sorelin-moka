@@ -4,7 +4,6 @@ import Sidebar from '@/components/Sidebar';
 import ShiftTimer from '@/components/ShiftTimer';
 import AdminBreadcrumb from '@/components/AdminBreadcrumb';
 import { getActiveShift } from '@/lib/services/shifts';
-import { formatRupiah } from '@/lib/utils';
 import { formatWibDate } from '@/lib/dates';
 
 // @next-codemod-ignore Cache Components adoption: this segment temporarily allows blocking.

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
-import { UserError, cleanStr, requireInteger } from '@/lib/validation';
+import { UserError, cleanStr } from '@/lib/validation';
+import { parseBundleConfig, serializeBundleConfig } from '@/lib/bundle-config';
 
 export interface CategoryWithCount {
   id: number;
@@ -9,12 +10,15 @@ export interface CategoryWithCount {
 
 export async function listCategoriesService(): Promise<CategoryWithCount[]> {
   const categories = await prisma.productType.findMany({
+    where: {
+      NOT: { name: { in: ['Bundle', 'Bundling'] } },
+    },
     orderBy: { name: 'asc' },
     include: {
       _count: {
         select: {
           products: {
-            where: { isActive: true },
+            where: { isActive: true, isBundle: false },
           },
         },
       },
@@ -31,6 +35,9 @@ export async function listCategoriesService(): Promise<CategoryWithCount[]> {
 export async function createCategoryService(nameRaw: FormDataEntryValue | string | null | undefined): Promise<{ id: number; name: string }> {
   const name = cleanStr(nameRaw, 50);
   if (!name) throw new UserError('Category name is required.');
+  if (name.toLowerCase() === 'bundle' || name.toLowerCase() === 'bundling') {
+    throw new UserError('Bundles are managed separately in the Bundles & Packages menu.');
+  }
 
   const existing = await prisma.productType.findFirst({
     where: { name: { equals: name } },
@@ -45,6 +52,9 @@ export async function createCategoryService(nameRaw: FormDataEntryValue | string
 export async function updateCategoryService(id: number, nameRaw: FormDataEntryValue | string | null | undefined): Promise<{ id: number; name: string }> {
   const name = cleanStr(nameRaw, 50);
   if (!name) throw new UserError('Category name is required.');
+  if (name.toLowerCase() === 'bundle' || name.toLowerCase() === 'bundling') {
+    throw new UserError('Bundles are managed separately in the Bundles & Packages menu.');
+  }
 
   const category = await prisma.productType.findUnique({ where: { id } });
   if (!category) throw new UserError('Category not found.');
@@ -54,9 +64,38 @@ export async function updateCategoryService(id: number, nameRaw: FormDataEntryVa
   });
   if (existing) throw new UserError(`Category "${name}" is already in use by another category.`);
 
-  return prisma.productType.update({
-    where: { id },
-    data: { name },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.productType.update({
+      where: { id },
+      data: { name },
+    });
+
+    // Keep bundle category slots in sync when a category is renamed
+    if (category.name.toLowerCase() !== name.toLowerCase()) {
+      const bundles = await tx.product.findMany({
+        where: { isBundle: true },
+        select: { id: true, availableVariants: true },
+      });
+      for (const b of bundles) {
+        const cfg = parseBundleConfig(b.availableVariants);
+        let changed = false;
+        const nextSlots = cfg.slots.map((s) => {
+          if (s.type === 'CATEGORY' && s.categoryName?.trim().toLowerCase() === category.name.trim().toLowerCase()) {
+            changed = true;
+            return { ...s, categoryName: name };
+          }
+          return s;
+        });
+        if (changed) {
+          await tx.product.update({
+            where: { id: b.id },
+            data: { availableVariants: serializeBundleConfig({ slots: nextSlots }) },
+          });
+        }
+      }
+    }
+
+    return updated;
   });
 }
 

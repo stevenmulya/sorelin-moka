@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { PAID_STATUSES, STATUS } from '@/lib/constants';
 import { UserError, cleanStr, requireInteger, parseInteger } from '@/lib/validation';
-import { formatRupiah } from '@/lib/utils';
 import type { Db } from '@/lib/services/orders';
 
 let cachedShiftRecord: { data: import('@prisma/client').Shift | null; expiresAt: number } | null = null;

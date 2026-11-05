@@ -117,6 +117,7 @@ export default function PaidOrderActions({
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(e.target.value)}
                   min={trxAmount}
+                  placeholder="Enter payment amount"
                   required
                   className="w-full px-3 py-2 bg-[#FAF0DA]/40 border border-[#E5D5BC] rounded-xl text-sm font-bold text-[#3F2311] focus:outline-none focus:ring-2 focus:ring-[#6B4227] focus:bg-[#FFFDF8]"
                 />

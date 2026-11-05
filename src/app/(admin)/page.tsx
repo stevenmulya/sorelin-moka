@@ -19,7 +19,7 @@ export default async function DashboardPage() {
 
   const [lowStockCount, activeShift] = await Promise.all([
     prisma.product.count({
-      where: { stock: { lte: LOW_STOCK_THRESHOLD }, isActive: true },
+      where: { stock: { lte: LOW_STOCK_THRESHOLD }, isActive: true, isBundle: false },
     }),
     getActiveShift(),
   ]);

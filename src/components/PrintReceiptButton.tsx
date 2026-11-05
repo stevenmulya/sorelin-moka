@@ -379,7 +379,8 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
   const pathname = usePathname();
 
   const trxCode = generateTrxCode(trx.id, trx.createdAt, trx.customer);
-  const totalQty = trx.items.reduce((acc, item) => acc + item.quantity, 0);
+  const safeItems = trx.items ?? [];
+  const totalQty = safeItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
 
   useEffect(() => {
     let active = true;
@@ -645,7 +646,7 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
 
                 {/* Items List (2-Line Moka POS Format so long names never clip prices on 48mm) */}
                 <div className="bp-items">
-                  {trx.items.map((item) => (
+                  {safeItems.map((item) => (
                     <div key={item.id} className="bp-item">
                       <div className="bp-item-name">{item.productName}</div>
                       {item.selectedVariant && (

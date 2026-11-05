@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { X, Check, Plus, Minus, Package, Sparkles, Layers } from 'lucide-react';
+import { X, Check, Plus, Minus, Sparkles, Layers } from 'lucide-react';
 import { formatRupiah, effectivePrice } from '@/lib/utils';
 import { parseBundleConfig } from '@/lib/bundle-config';
 
@@ -56,6 +56,7 @@ export default function ItemCustomizerModal({
   maxAvailableStock,
   allAvailableVariants,
   allProducts,
+  cartDemand,
   onClose,
   onConfirm,
 }: {
@@ -63,6 +64,7 @@ export default function ItemCustomizerModal({
   maxAvailableStock: number;
   allAvailableVariants?: ProductVariantItem[];
   allProducts?: CustomizableProduct[];
+  cartDemand?: Map<number, number>;
   onClose: () => void;
   onConfirm: (result: CustomizationResult) => void;
 }) {
@@ -82,7 +84,7 @@ export default function ItemCustomizerModal({
     return bundleConfig.slots.filter((s) => s.type === 'PRODUCT');
   }, [bundleConfig]);
 
-  const hasConfiguredSlots = categorySlots.length > 0;
+  const hasConfiguredSlots = bundleConfig.slots.length > 0;
 
   // Single item flavors
   const singleProductVariants = useMemo(() => {
@@ -136,18 +138,6 @@ export default function ItemCustomizerModal({
     if (!raw || raw.toUpperCase() === 'NONE') return null;
     return raw.replace(/^(include|termasuk)\s*:?\s*/i, '').trim() || 'Air Mineral';
   }, [product]);
-
-  if (!product) return null;
-
-  // Single mode variant option lookup
-  const selectedVariantOption = singleProductVariants.find((v) => v.name === selectedVariantName);
-  const unitPrice = selectedVariantOption ? selectedVariantOption.price : effectivePrice(product);
-  const effectiveMaxStock = selectedVariantOption
-    ? Math.max(0, selectedVariantOption.stock)
-    : Math.max(0, maxAvailableStock);
-
-  // Bundle calculations
-  const bundleBasePrice = effectivePrice(product);
 
   // Map of category name (lowercase) -> min price among standalone products in that category
   const categoryMinPrices = useMemo(() => {
@@ -203,8 +193,55 @@ export default function ItemCustomizerModal({
     return sum;
   }, [hasConfiguredSlots, legacyBundleCounts, legacyBundleFlavorList]);
 
+  const areFixedSlotsInStock = useMemo(() => {
+    for (const fixed of fixedSlots) {
+      if (!fixed.productName) continue;
+      const prod = (allProducts || []).find(
+        (p) => !p.isBundle && p.name.trim().toLowerCase() === fixed.productName?.trim().toLowerCase()
+      );
+      if (!prod) return false;
+      const inCart = cartDemand?.get(prod.id) ?? 0;
+      if (prod.stock - inCart < (fixed.quantity || 1)) return false;
+    }
+    return true;
+  }, [fixedSlots, allProducts, cartDemand]);
+
+  if (!product) return null;
+
+  // Single mode variant option lookup
+  const selectedVariantOption = singleProductVariants.find((v) => v.name === selectedVariantName);
+  const unitPrice = selectedVariantOption ? selectedVariantOption.price : effectivePrice(product);
+  const effectiveMaxStock = selectedVariantOption
+    ? Math.max(0, selectedVariantOption.stock)
+    : Math.max(0, maxAvailableStock);
+
+  // Bundle calculations
+  const bundleBasePrice = effectivePrice(product);
   const totalBundleUpcharges = hasConfiguredSlots ? totalSlotUpcharge : totalLegacyUpcharge;
   const liveBundlePrice = bundleBasePrice + totalBundleUpcharges;
+
+  // Helper: remaining stock for a product after subtracting cart demand and fixed bundle slots
+  const getRemainingStockForCategoryChoice = (itemId: number, itemName: string, rawStock: number) => {
+    const inCart = cartDemand?.get(itemId) ?? 0;
+    const fixedUsed = fixedSlots
+      .filter((f) => f.productName?.trim().toLowerCase() === itemName.trim().toLowerCase())
+      .reduce((sum, f) => sum + (f.quantity || 1), 0);
+    return Math.max(0, rawStock - inCart - fixedUsed);
+  };
+
+  const getTotalSelectedAcrossCategorySlots = (itemName: string) => {
+    const target = itemName.trim().toLowerCase();
+    let total = 0;
+    for (const slot of categorySlots) {
+      const items = slotSelections[slot.id] || {};
+      for (const [k, v] of Object.entries(items)) {
+        if (k.trim().toLowerCase() === target) {
+          total += v || 0;
+        }
+      }
+    }
+    return total;
+  };
 
   // Slot helper functions
   const getSlotCount = (slotId: string) => {
@@ -218,7 +255,7 @@ export default function ItemCustomizerModal({
   };
 
   const isSlotBasedReady = hasConfiguredSlots
-    ? categorySlots.every((s) => isSlotReady(s.id, s.quota))
+    ? categorySlots.every((s) => isSlotReady(s.id, s.quota)) && areFixedSlotsInStock
     : false;
 
   const totalLegacyBundleItems = Object.values(legacyBundleCounts).reduce((sum, n) => sum + (n || 0), 0);
@@ -227,11 +264,12 @@ export default function ItemCustomizerModal({
   const isBundleReady = hasConfiguredSlots ? isSlotBasedReady : isLegacyReady;
   const isFormReady = isBundle ? isBundleReady : (effectiveMaxStock > 0 && singleQty > 0 && singleQty <= effectiveMaxStock);
 
-  const handleSlotIncrement = (slotId: string, quota: number, itemName: string, stock: number) => {
+  const handleSlotIncrement = (slotId: string, quota: number, itemName: string, availForCategory: number) => {
     const currentTotal = getSlotCount(slotId);
     if (currentTotal >= quota) return;
+    const totalAcrossSlots = getTotalSelectedAcrossCategorySlots(itemName);
+    if (totalAcrossSlots >= availForCategory) return;
     const currentItemCount = slotSelections[slotId]?.[itemName] || 0;
-    if (currentItemCount >= stock) return;
 
     setSlotSelections((prev) => ({
       ...prev,
@@ -436,9 +474,12 @@ export default function ItemCustomizerModal({
                         <div className="divide-y divide-[#E5D5BC]/60 border border-[#E5D5BC] rounded-xl overflow-hidden bg-[#FFFDF8]">
                           {displayItems.map((item) => {
                             const count = slotSelections[slot.id]?.[item.name] || 0;
-                            const itemStock = 'stock' in item && typeof item.stock === 'number' ? item.stock : 99;
+                            const rawStock = 'stock' in item && typeof item.stock === 'number' ? item.stock : 99;
+                            const itemId = 'id' in item && typeof item.id === 'number' ? item.id : 0;
+                            const itemStock = getRemainingStockForCategoryChoice(itemId, item.name, rawStock);
+                            const totalSelectedForThisItem = getTotalSelectedAcrossCategorySlots(item.name);
                             const isOutOfStock = itemStock <= 0;
-                            const isMaxStock = count >= itemStock;
+                            const isMaxStock = totalSelectedForThisItem >= itemStock;
                             const catKey = slot.categoryName ? slot.categoryName.trim().toLowerCase() : '';
                             const minCatPrice = categoryMinPrices.get(catKey) ?? 0;
                             const itemPrice = 'price' in item && typeof item.price === 'number' ? effectivePrice(item as CustomizableProduct) : 0;
@@ -753,7 +794,7 @@ export default function ItemCustomizerModal({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Warm up, pack separately, extra napkins..."
+              placeholder="Enter special instructions"
               maxLength={150}
               className="w-full px-3.5 py-2.5 bg-[#FAF0DA]/40 border border-[#E5D5BC] rounded-xl text-xs text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:bg-[#FFFDF8] transition-all"
             />

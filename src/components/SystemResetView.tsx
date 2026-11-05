@@ -16,8 +16,6 @@ import {
   Sparkles,
   ShieldAlert,
   Lock,
-  Layers,
-  Database,
 } from 'lucide-react';
 import { clearAllTransactionsAndShifts } from '@/app/actions';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';

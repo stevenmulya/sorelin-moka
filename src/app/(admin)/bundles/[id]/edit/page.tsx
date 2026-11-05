@@ -20,6 +20,9 @@ export default async function EditBundlePage(props: {
       include: { images: true },
     }),
     prisma.productType.findMany({
+      where: {
+        NOT: { name: { in: ['Bundle', 'Bundling'] } },
+      },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),

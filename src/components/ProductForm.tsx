@@ -45,12 +45,17 @@ export default function ProductForm({
 
   // Basic Information
   const [name, setName] = useState(initialData?.name || '');
-  const [type, setType] = useState(initialData?.type?.name || categories[0]?.name || 'Saltbread');
+  const [type, setType] = useState(initialData?.type?.name || categories[0]?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
 
   // Pricing & Real-time Discount Calculation
-  const [costPrice, setCostPrice] = useState<number>(initialData?.costPrice ?? 7000);
-  const [price, setPrice] = useState<number>(initialData?.price ?? 15000);
+  const [costPriceRaw, setCostPriceRaw] = useState<string>(
+    initialData?.costPrice !== undefined ? String(initialData.costPrice) : ''
+  );
+  const [priceRaw, setPriceRaw] = useState<string>(
+    initialData?.price !== undefined ? String(initialData.price) : ''
+  );
+  const price = Number(priceRaw) || 0;
 
   const initialDiscountPercent = (() => {
     if (initialData?.discountPrice && initialData?.price && initialData.discountPrice < initialData.price) {
@@ -67,7 +72,9 @@ export default function ProductForm({
   const savings = finalDiscountPrice ? price - finalDiscountPrice : 0;
 
   // Physical Stock on Hand
-  const [stock, setStock] = useState<number>(initialData?.stock ?? 10);
+  const [stockRaw, setStockRaw] = useState<string>(
+    initialData?.stock !== undefined ? String(initialData.stock) : ''
+  );
 
   const handleDeleteImage = async (imageId: number) => {
     if (!initialData?.id) return;
@@ -79,9 +86,12 @@ export default function ProductForm({
     if (res?.error) window.alert(res.error);
   };
 
-  const defaultCategoryPills = categories.length > 0
-    ? categories.map((c) => c.name)
-    : ['Saltbread', 'Beverage', 'Coffee', 'Tea', 'Snack', 'Other'];
+  const filteredCategories = categories.filter(
+    (c) => c.name.toLowerCase() !== 'bundle' && c.name.toLowerCase() !== 'bundling'
+  );
+  const defaultCategoryPills = filteredCategories.length > 0
+    ? filteredCategories.map((c) => c.name)
+    : ['Saltbread', 'Beverage'];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -196,11 +206,12 @@ export default function ProductForm({
                   <input
                     type="number"
                     name="stock"
-                    value={stock}
-                    onChange={(e) => setStock(Math.max(0, Number(e.target.value)))}
+                    value={stockRaw}
+                    onChange={(e) => setStockRaw(e.target.value)}
                     min={0}
                     required
-                    className="w-32 px-3.5 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all text-center"
+                    placeholder="Enter stock quantity"
+                    className="w-44 px-3.5 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all text-center"
                   />
                 </div>
               </div>
@@ -221,11 +232,12 @@ export default function ProductForm({
                   <input
                     type="number"
                     name="costPrice"
-                    value={costPrice}
-                    onChange={(e) => setCostPrice(Math.max(0, Number(e.target.value)))}
+                    value={costPriceRaw}
+                    onChange={(e) => setCostPriceRaw(e.target.value)}
                     min={0}
                     required
-                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-medium text-[#3F2311] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
+                    placeholder="Enter cost price"
+                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-medium text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                   />
                 </div>
 
@@ -236,11 +248,12 @@ export default function ProductForm({
                   <input
                     type="number"
                     name="price"
-                    value={price}
-                    onChange={(e) => setPrice(Math.max(1, Number(e.target.value)))}
+                    value={priceRaw}
+                    onChange={(e) => setPriceRaw(e.target.value)}
                     min={1}
                     required
-                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#3F2311] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
+                    placeholder="Enter selling price"
+                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                   />
                 </div>
 
@@ -260,8 +273,8 @@ export default function ProductForm({
                       }}
                       min={0}
                       max={99}
-                      placeholder="0"
-                      className="w-full px-3.5 py-2.5 pr-8 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
+                      placeholder="Enter discount percentage"
+                      className="w-full px-3.5 py-2.5 pr-8 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                     />
                     <Percent className="h-3.5 w-3.5 text-[#8E6D53] absolute right-3 top-3 pointer-events-none" strokeWidth={1.5} />
                   </div>

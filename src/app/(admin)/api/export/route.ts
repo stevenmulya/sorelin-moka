@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
-import { resolveRange, formatWibDate } from '@/lib/dates';
+import { resolveRange, formatWibDate, formatWibDateTime } from '@/lib/dates';
 import { buildTransactionsExcelBuffer } from '@/lib/excel';
-import { getActiveShift } from '@/lib/services/shifts';
+import { getActiveShift, summarizeShift, expectedCashOf } from '@/lib/services/shifts';
 
 export async function GET(request: Request) {
   try {
@@ -18,14 +18,19 @@ export async function GET(request: Request) {
   const presetParam = searchParams.get('preset') || 'this_shift';
 
   const activeShift = await getActiveShift();
+  const targetShift =
+    activeShift ??
+    (presetParam === 'this_shift'
+      ? await prisma.shift.findFirst({ orderBy: { startTime: 'desc' } })
+      : null);
 
   const range = resolveRange(
     { preset: presetParam, start: startParam, end: endParam },
-    activeShift ? activeShift.startTime : null,
+    targetShift ? targetShift.startTime : null,
   );
 
   const isThisShift = range.preset === 'this_shift';
-  const shiftFilterId = activeShift ? activeShift.id : -1;
+  const shiftFilterId = targetShift ? targetShift.id : -1;
 
   const expenseWhere = isThisShift
     ? { shiftId: shiftFilterId }
@@ -65,14 +70,44 @@ export async function GET(request: Request) {
   const dateEndStr = range.endStr || formatWibDate(new Date());
   const rangeDisplayStr =
     isThisShift
-      ? activeShift
-        ? `Shift #${activeShift.id} (${dateStartStr})`
-        : 'No Active Shift'
+      ? targetShift
+        ? `Shift #${targetShift.id} (${dateStartStr})`
+        : 'No Shift Data'
       : range.preset === 'all'
         ? 'All Time'
         : dateStartStr === dateEndStr
           ? dateStartStr
           : `${dateStartStr} - ${dateEndStr}`;
+
+  let shiftMeta;
+  if (isThisShift && targetShift) {
+    const startStr = formatWibDateTime(targetShift.startTime);
+    const endStr = targetShift.endTime ? formatWibDateTime(targetShift.endTime) : 'Ongoing';
+    let durationStr = '-';
+    if (targetShift.endTime) {
+      const ms = targetShift.endTime.getTime() - targetShift.startTime.getTime();
+      const hrs = Math.floor(ms / 3600000);
+      const mins = Math.floor((ms % 3600000) / 60000);
+      durationStr = `${hrs}h ${mins}m`;
+    }
+    const summary = await summarizeShift(prisma, targetShift.id);
+    const computedExpected = targetShift.expectedCash ?? expectedCashOf(targetShift.initialCash, summary);
+    const actualCash = targetShift.actualCash !== null ? targetShift.actualCash : '-';
+    const discrepancy =
+      targetShift.actualCash !== null ? targetShift.actualCash - computedExpected : '-';
+
+    shiftMeta = {
+      startStr,
+      endStr,
+      durationStr,
+      openedBy: targetShift.openedBy,
+      closedBy: targetShift.closedBy || '-',
+      initialCash: targetShift.initialCash,
+      expectedCash: computedExpected,
+      actualCash,
+      discrepancy,
+    };
+  }
 
   const buf = await buildTransactionsExcelBuffer({
     transactions,
@@ -80,6 +115,7 @@ export async function GET(request: Request) {
     expensesList,
     sheetName: 'Transactions',
     periodLabel: rangeDisplayStr,
+    shiftMeta,
   });
 
   const filename =

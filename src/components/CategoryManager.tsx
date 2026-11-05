@@ -41,7 +41,7 @@ export default function CategoryManager({ categories }: { categories: CategoryWi
             name="name"
             required
             maxLength={50}
-            placeholder="Category Name (e.g. Coffee, Tea, Pastry)"
+            placeholder="Enter category name"
             className="flex-1 px-4 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-medium text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
           />
           <SubmitButton
@@ -94,6 +94,7 @@ export default function CategoryManager({ categories }: { categories: CategoryWi
                         onChange={(e) => setEditingName(e.target.value)}
                         required
                         maxLength={50}
+                        placeholder="Enter category name"
                         className="flex-1 px-3 py-1.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-sm font-medium text-[#3F2311] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227]"
                       />
                       <SubmitButton

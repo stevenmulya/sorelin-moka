@@ -204,7 +204,19 @@ async function syncTurso() {
     const localProducts = await localClient.execute('SELECT * FROM Product');
     const localImages = await localClient.execute('SELECT * FROM ProductImage');
 
-    console.log(`📋 Copying product catalog from local SQLite (${localProducts.rows.length} items)...`);
+    console.log(`📋 Syncing clean product catalog from local SQLite (${localProducts.rows.length} items) to Turso...`);
+
+    // Clear existing data on Turso first so no old seed/bundles/transactions remain
+    await tursoClient.execute('DELETE FROM TransactionItem');
+    await tursoClient.execute('DELETE FROM "Transaction"');
+    await tursoClient.execute('DELETE FROM InventoryLog');
+    await tursoClient.execute('DELETE FROM Expense');
+    await tursoClient.execute('DELETE FROM Shift');
+    await tursoClient.execute('DELETE FROM ProductVariantOption');
+    await tursoClient.execute('DELETE FROM ProductImage');
+    await tursoClient.execute('DELETE FROM Product');
+    await tursoClient.execute('DELETE FROM ProductVariant');
+    await tursoClient.execute('DELETE FROM ProductType');
 
     for (const t of localTypes.rows) {
       await tursoClient.execute({

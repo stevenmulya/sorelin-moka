@@ -68,7 +68,7 @@ export default async function ShiftPage() {
                 name="initialCash"
                 defaultValue={0}
                 min={0}
-                placeholder="0"
+                placeholder="Enter initial cash"
                 className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm text-[#3F2311] focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:outline-none"
               />
               <p className="text-[11px] text-[#8E6D53] mt-1 font-normal">

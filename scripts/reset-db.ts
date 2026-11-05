@@ -50,11 +50,11 @@ async function resetAllData() {
     console.log(`- Deleted ${deletedSelfies} selfie files from uploads/`);
   }
 
-  // 6. Reset product stock to initial default (20 per active item)
+  // 6. Reset all product stock quantities to 0
   await prisma.product.updateMany({
-    data: { stock: 20 },
+    data: { stock: 0 },
   });
-  console.log('✅ All product stock quantities have been reset to 20.');
+  console.log('✅ All product stock quantities have been reset to 0.');
 
   console.log('\n🎉 Database reset complete!');
 }

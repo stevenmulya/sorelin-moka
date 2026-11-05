@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { UserError, cleanStr, cleanText, parseInteger, requireInteger } from '@/lib/validation';
 import { LOW_STOCK_THRESHOLD } from '@/lib/constants';
+import { parseBundleConfig } from '@/lib/bundle-config';
 
 // ============================ STOCK ============================
 
@@ -12,9 +13,9 @@ export interface AdjustStockInput {
   variantOptionId?: number | null;
   type: string;
   quantity: unknown;
-  giver: string;
-  receiver: string;
-  notes: string;
+  giver?: string | null;
+  receiver?: string | null;
+  notes?: string | null;
 }
 
 /** Manual stock adjustment. Stock and inventory log are updated atomically; stock can never become negative. */
@@ -35,9 +36,12 @@ export async function adjustStockService(input: AdjustStockInput) {
   return prisma.$transaction(async (tx) => {
     const product = await tx.product.findFirst({
       where: { id: input.productId, isActive: true },
-      select: { id: true, name: true, stock: true },
+      select: { id: true, name: true, stock: true, isBundle: true },
     });
     if (!product) throw new UserError('Product not found.');
+    if (product.isBundle) {
+      throw new UserError('Bundle stock cannot be adjusted directly because it is dynamically linked to its component products.');
+    }
 
     let variantName = '';
 
@@ -215,25 +219,41 @@ export function parseProductForm(fd: FormData): ProductInput {
     }
   }
 
-  let availableVariants = cleanStr(fd.get('availableVariants'), 500) || null;
+  let availableVariants = cleanStr(fd.get('availableVariants'), 4000) || null;
   if (!availableVariants && variantOptions && variantOptions.length > 0) {
     availableVariants = variantOptions.map((v) => v.name).join(', ');
   }
 
   const isBundle = fd.get('isBundle') === 'true' || fd.get('isBundle') === 'on';
-  const bundleQuota = isBundle
-    ? requireInteger(fd.get('bundleQuota') as string, 'Bundle quota', { min: 2, max: 50 })
-    : null;
+  let bundleQuota: number | null = null;
+  if (isBundle) {
+    const parsedConfig = parseBundleConfig(availableVariants);
+    if (parsedConfig.slots.length === 0) {
+      throw new UserError('Please add at least one product or category component to the bundle.');
+    }
+    const calculatedTotal = parsedConfig.slots.reduce(
+      (sum, s) => sum + (s.type === 'CATEGORY' ? (s.quota || 1) : (s.quantity || 1)),
+      0
+    );
+    const rawQuota = fd.get('bundleQuota');
+    bundleQuota =
+      rawQuota !== null && String(rawQuota).trim() !== ''
+        ? requireInteger(String(rawQuota), 'Bundle quota', { min: 1, max: 50 })
+        : Math.max(1, calculatedTotal);
+  }
+
+  const rawType = cleanStr(fd.get('type'), 50);
+  const normalizedType = isBundle || rawType.toLowerCase() === 'bundle' || rawType.toLowerCase() === 'bundling' ? '' : rawType;
 
   return {
     name,
-    type: cleanStr(fd.get('type'), 50),
+    type: normalizedType,
     variant: cleanStr(fd.get('variant'), 50),
     description: cleanText(fd.get('description'), 500),
     costPrice,
     price,
     discountPrice,
-    stock,
+    stock: isBundle ? 0 : stock,
     availableVariants,
     isBundle,
     bundleQuota,
@@ -248,21 +268,26 @@ export async function createProductService(input: ProductInput, imageUrls: strin
   });
   const nextPriority = (maxPriority._max.priority ?? 0) + 1;
 
-  const initialStock = input.variantOptions && input.variantOptions.length > 0
-    ? input.variantOptions.reduce((sum, v) => sum + (v.stock || 0), 0)
-    : (input.stock ?? 0);
+  const isBundle = Boolean(input.isBundle);
+  const cleanType = isBundle || input.type?.toLowerCase() === 'bundle' || input.type?.toLowerCase() === 'bundling' ? '' : input.type;
+
+  const initialStock = isBundle
+    ? 0
+    : input.variantOptions && input.variantOptions.length > 0
+      ? input.variantOptions.reduce((sum, v) => sum + (v.stock || 0), 0)
+      : (input.stock ?? 0);
 
   return prisma.product.create({
     data: {
       name: input.name,
-      type: input.type ? { connectOrCreate: { where: { name: input.type }, create: { name: input.type } } } : undefined,
+      type: cleanType ? { connectOrCreate: { where: { name: cleanType }, create: { name: cleanType } } } : undefined,
       variant: input.variant ? { connectOrCreate: { where: { name: input.variant }, create: { name: input.variant } } } : undefined,
       description: input.description || null,
       costPrice: input.costPrice,
       price: input.price,
       discountPrice: input.discountPrice,
       availableVariants: input.availableVariants,
-      isBundle: input.isBundle ?? false,
+      isBundle,
       bundleQuota: input.bundleQuota,
       stock: initialStock,
       priority: nextPriority,
@@ -290,6 +315,9 @@ export async function createProductService(input: ProductInput, imageUrls: strin
 
 export async function updateProductService(id: number, input: ProductInput, imageUrls: string[]) {
   return prisma.$transaction(async (tx) => {
+    const isBundle = Boolean(input.isBundle);
+    const cleanType = isBundle || input.type?.toLowerCase() === 'bundle' || input.type?.toLowerCase() === 'bundling' ? '' : input.type;
+
     if (input.variantOptions) {
       const incomingIds = input.variantOptions
         .map((v) => v.id)
@@ -338,7 +366,7 @@ export async function updateProductService(id: number, input: ProductInput, imag
       const totalVariantStock = input.variantOptions.reduce((sum, v) => sum + (v.stock || 0), 0);
       await tx.product.update({
         where: { id },
-        data: { stock: totalVariantStock },
+        data: { stock: isBundle ? 0 : totalVariantStock },
       });
     }
 
@@ -346,18 +374,20 @@ export async function updateProductService(id: number, input: ProductInput, imag
       where: { id },
       data: {
         name: input.name,
-        type: input.type ? { connectOrCreate: { where: { name: input.type }, create: { name: input.type } } } : { disconnect: true },
+        type: cleanType ? { connectOrCreate: { where: { name: cleanType }, create: { name: cleanType } } } : { disconnect: true },
         variant: input.variant ? { connectOrCreate: { where: { name: input.variant }, create: { name: input.variant } } } : { disconnect: true },
         description: input.description || null,
         costPrice: input.costPrice,
         price: input.price,
         discountPrice: input.discountPrice,
         availableVariants: input.availableVariants,
-        isBundle: input.isBundle ?? false,
+        isBundle,
         bundleQuota: input.bundleQuota,
-        ...(typeof input.stock === 'number' && (!input.variantOptions || input.variantOptions.length === 0)
-          ? { stock: input.stock }
-          : {}),
+        ...(isBundle
+          ? { stock: 0 }
+          : typeof input.stock === 'number' && (!input.variantOptions || input.variantOptions.length === 0)
+            ? { stock: input.stock }
+            : {}),
         ...(imageUrls.length > 0 ? { images: { create: imageUrls.map((url) => ({ url })) } } : {}),
       },
       include: {

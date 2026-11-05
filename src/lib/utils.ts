@@ -15,8 +15,9 @@ export function formatRupiah(amount: number | null | undefined): string {
 }
 
 /** Generate a standardized transaction code using WIB date so it matches on server and client. */
-export function generateTrxCode(id: number, date: Date | string, customer?: string | null) {
-  const d = new Date(date);
+export function generateTrxCode(id: number | null | undefined, date: Date | string | null | undefined, customer?: string | null) {
+  const rawDate = date ? new Date(date) : new Date();
+  const d = isNaN(rawDate.getTime()) ? new Date() : rawDate;
   const [y, m, day] = formatWibDate(d).split('-');
   const dateStr = `${day}${m}${y}`;
 
@@ -24,11 +25,12 @@ export function generateTrxCode(id: number, date: Date | string, customer?: stri
   const safeCustomer = (customer || 'GUEST').trim();
   const cleanCustomer = safeCustomer.split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 6) || 'GUEST';
 
-  return `TRX-${id.toString().padStart(4, '0')}-${dateStr}-${cleanCustomer}`;
+  return `TRX-${(id ?? 0).toString().padStart(4, '0')}-${dateStr}-${cleanCustomer}`;
 }
 
 /** Effective unit price: returns discountPrice when valid and lower than regular price. */
-export function effectivePrice(p: { price: number; discountPrice?: number | null }): number {
+export function effectivePrice(p: { price: number; discountPrice?: number | null } | null | undefined): number {
+  if (!p) return 0;
   if (p.discountPrice && p.discountPrice > 0 && p.discountPrice < p.price) return p.discountPrice;
-  return p.price;
+  return p.price ?? 0;
 }

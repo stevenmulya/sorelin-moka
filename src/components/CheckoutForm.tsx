@@ -6,6 +6,11 @@ import ActionForm, { SubmitButton } from '@/components/ActionForm';
 import { effectivePrice, formatRupiah } from '@/lib/utils';
 import { LOW_STOCK_THRESHOLD } from '@/lib/constants';
 import {
+  getCartProductDemand,
+  canIncrementCartItem,
+  getBundleMaxStock,
+} from '@/lib/bundle-config';
+import {
   Minus,
   Plus,
   ShoppingCart,
@@ -55,6 +60,10 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
     return products.flatMap((p) => p.variants || []);
   }, [products]);
 
+  const cartDemand = useMemo(() => {
+    return getCartProductDemand(cart, products);
+  }, [cart, products]);
+
   const getProductCartQty = (productId: number) => {
     return cart
       .filter((item) => item.product.id === productId)
@@ -66,9 +75,13 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
   };
 
   const handleProductCardClick = (product: Product) => {
-    const currentQty = getProductCartQty(product.id);
+    const usedQty = cartDemand.get(product.id) ?? 0;
     const hasVariants = product.isBundle || Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
-    if (!hasVariants && product.stock - currentQty <= 0) {
+    if (product.isBundle && getBundleMaxStock(product, products, cartDemand) <= 0) {
+      window.alert(`Cannot add "${product.name}". Component products are out of stock.`);
+      return;
+    }
+    if (!hasVariants && product.stock - usedQty <= 0) {
       window.alert(`Cannot add "${product.name}". Maximum available stock (${product.stock}) reached.`);
       return;
     }
@@ -148,10 +161,9 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
   };
 
   const incrementCartItem = (cartItem: CartItem) => {
-    const currentTotal = getProductCartQty(cartItem.product.id);
-    if (!cartItem.product.isBundle && currentTotal >= cartItem.product.stock) {
+    if (!canIncrementCartItem(cartItem, cart, products)) {
       window.alert(
-        `Cannot add more "${cartItem.product.name}". Maximum available stock (${cartItem.product.stock}) reached.`
+        `Cannot add more "${cartItem.product.name}". Maximum available stock reached.`
       );
       return;
     }
@@ -194,11 +206,12 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
           product={customizingProduct}
           maxAvailableStock={
             customizingProduct.isBundle
-              ? 999
-              : customizingProduct.stock - getProductCartQty(customizingProduct.id)
+              ? getBundleMaxStock(customizingProduct, products, cartDemand)
+              : Math.max(0, customizingProduct.stock - (cartDemand.get(customizingProduct.id) ?? 0))
           }
           allAvailableVariants={allAvailableVariants}
           allProducts={products}
+          cartDemand={cartDemand}
           onClose={() => setCustomizingProduct(null)}
           onConfirm={handleCustomizerConfirm}
         />
@@ -212,7 +225,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8E6D53]" />
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder="Enter product name"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -250,9 +263,14 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                   product.discountPrice && product.discountPrice > 0 && product.discountPrice < product.price
                 );
                 const currentCartQty = getProductCartQty(product.id);
-                const remainingStock = product.stock - currentCartQty;
-                const hasVariants = product.isBundle || Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
-                const isOutOfStock = !hasVariants && remainingStock <= 0;
+                const usedInCart = cartDemand.get(product.id) ?? 0;
+                const remainingStock = product.isBundle
+                  ? getBundleMaxStock(product, products, cartDemand)
+                  : Math.max(0, product.stock - usedInCart);
+                const hasVariants = Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
+                const isOutOfStock = product.isBundle
+                  ? remainingStock <= 0
+                  : !hasVariants && remainingStock <= 0;
 
                 return (
                   <div
@@ -283,16 +301,16 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
 
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                          product.isBundle
-                            ? 'bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC]'
-                            : isOutOfStock
-                              ? 'bg-[#FEF2F2] text-red-700 border border-[#FECACA]'
+                          isOutOfStock
+                            ? 'bg-[#FEF2F2] text-red-700 border border-[#FECACA]'
+                            : product.isBundle
+                              ? 'bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC]'
                               : remainingStock <= LOW_STOCK_THRESHOLD
                                 ? 'bg-[#F3DBAA]/60 text-[#6B4227] border border-[#E5D5BC]'
                                 : 'bg-[#F0FDF4] text-emerald-700 border border-[#DCFCE7]'
                         }`}
                       >
-                        {product.isBundle ? 'Package' : isOutOfStock ? 'Sold Out' : `${remainingStock} left`}
+                        {isOutOfStock ? 'Sold Out' : product.isBundle ? `${remainingStock} sets` : `${remainingStock} left`}
                       </span>
                     </div>
 
@@ -518,7 +536,7 @@ export default function CheckoutForm({ products }: { products: Product[] }) {
                 name="customerPhone"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="Enter customer phone"
+                placeholder="Enter customer number"
                 maxLength={20}
                 className="w-full px-3 py-2 bg-[#FAF0DA]/40 border border-[#E5D5BC] rounded-xl text-xs text-[#3F2311] placeholder-[#8E6D53] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/20 focus:border-[#6B4227] focus:bg-[#FFFDF8] transition-all"
               />

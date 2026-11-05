@@ -10,6 +10,9 @@ export default async function NewBundlePage() {
 
   const [categories, singleProducts] = await Promise.all([
     prisma.productType.findMany({
+      where: {
+        NOT: { name: { in: ['Bundle', 'Bundling'] } },
+      },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),

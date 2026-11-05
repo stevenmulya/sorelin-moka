@@ -32,12 +32,17 @@ export default async function ReportPage({
   const resolvedParams = await searchParams;
 
   const activeShift = await getActiveShift();
+  const targetShift =
+    activeShift ??
+    (!resolvedParams.preset || resolvedParams.preset === 'this_shift'
+      ? await prisma.shift.findFirst({ orderBy: { startTime: 'desc' } })
+      : null);
 
-  const range = resolveRange(resolvedParams, activeShift?.startTime ?? null);
+  const range = resolveRange(resolvedParams, targetShift?.startTime ?? null);
   const { start: startDate, end: endDate, preset, startStr, endStr, days: daysInRange } = range;
 
   const isThisShift = preset === 'this_shift';
-  const shiftFilterId = activeShift ? activeShift.id : -1;
+  const shiftFilterId = targetShift ? targetShift.id : -1;
 
   const trxWhere: Prisma.TransactionWhereInput = isThisShift
     ? { status: { in: [...PAID_STATUSES] }, shiftId: shiftFilterId }
@@ -87,7 +92,7 @@ export default async function ReportPage({
     }),
     prisma.transaction.findMany({
       where: trxWhere,
-      select: { createdAt: true, preparedAt: true, readyAt: true },
+      select: { amount: true, paymentMethod: true, createdAt: true, preparedAt: true, readyAt: true },
     }),
     prisma.transaction.groupBy({
       by: ['customer'],
@@ -100,7 +105,7 @@ export default async function ReportPage({
         transaction: trxWhere,
       },
       orderBy: { _sum: { quantity: 'desc' } },
-      take: 5,
+      take: 50,
     }),
     prisma.shift.count({
       where: shiftCountWhere,
@@ -111,41 +116,69 @@ export default async function ReportPage({
   const grossRevenue = revenueSum._sum.amount || 0;
   const totalOpex = expenseSum._sum.amount || 0;
   let totalCogs = 0;
-  const flavorSalesMap = new Map<string, number>();
+  const flavorSalesMap = new Map<
+    string,
+    { name: string; singleQty: number; bundleQty: number; totalQty: number }
+  >();
 
   for (const item of cogsItems) {
     totalCogs += item.quantity * item.costPrice;
 
-    if (item.selectedVariant) {
-      flavorSalesMap.set(
-        item.selectedVariant,
-        (flavorSalesMap.get(item.selectedVariant) || 0) + item.quantity
-      );
-    }
-
-    if (item.isBundle && item.bundleContents) {
+    if (!item.isBundle) {
+      const rawName =
+        item.selectedVariant && item.selectedVariant.trim().toLowerCase() !== 'standard'
+          ? item.selectedVariant.trim()
+          : item.productName.trim();
+      const key = rawName.toLowerCase();
+      const ex = flavorSalesMap.get(key) || { name: rawName, singleQty: 0, bundleQty: 0, totalQty: 0 };
+      ex.singleQty += item.quantity;
+      ex.totalQty += item.quantity;
+      flavorSalesMap.set(key, ex);
+    } else if (item.bundleContents) {
       const parsed = parseBundleFlavors(item.bundleContents);
       for (const f of parsed) {
-        flavorSalesMap.set(
-          f.flavorName,
-          (flavorSalesMap.get(f.flavorName) || 0) + f.quantity * item.quantity
-        );
+        const rawName = f.flavorName.trim();
+        const key = rawName.toLowerCase();
+        const used = f.quantity * item.quantity;
+        const ex = flavorSalesMap.get(key) || { name: rawName, singleQty: 0, bundleQty: 0, totalQty: 0 };
+        ex.bundleQty += used;
+        ex.totalQty += used;
+        flavorSalesMap.set(key, ex);
       }
     }
   }
 
-  const topFlavors = Array.from(flavorSalesMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const topFlavors = Array.from(flavorSalesMap.values())
+    .sort((a, b) => b.totalQty - a.totalQty)
+    .slice(0, 50);
 
-  const netProfit = grossRevenue - totalCogs - totalOpex;
+  const grossProfit = grossRevenue - totalCogs;
+  const netProfit = grossProfit - totalOpex;
 
-  // 2. KITCHEN PERFORMANCE & PEAK HOURS (Single pass over paidTransactions)
+  // 2. KITCHEN PERFORMANCE, PEAK HOURS & PAYMENT METHOD BREAKDOWN (Single pass over paidTransactions)
   let totalPrepTimeMs = 0;
   let validPrepCount = 0;
+  let cashRevenue = 0;
+  let qrisRevenue = 0;
+  let debitRevenue = 0;
+  let cashCount = 0;
+  let qrisCount = 0;
+  let debitCount = 0;
   const hourCounts: Record<number, number> = {};
 
   for (const t of paidTransactions) {
+    const method = t.paymentMethod || 'Cash';
+    if (method === 'QRIS') {
+      qrisRevenue += t.amount;
+      qrisCount++;
+    } else if (method === 'Debit') {
+      debitRevenue += t.amount;
+      debitCount++;
+    } else {
+      cashRevenue += t.amount;
+      cashCount++;
+    }
+
     const hour = wibHour(t.createdAt);
     hourCounts[hour] = (hourCounts[hour] || 0) + 1;
 
@@ -224,7 +257,9 @@ export default async function ReportPage({
               <p className="text-xs font-bold text-[#8E6D53]">Total COGS</p>
             </div>
             <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#6B4227] truncate">{formatRupiah(totalCogs)}</h3>
-            <p className="text-xs text-[#8E6D53] mt-1">Cost of goods sold</p>
+            <p className="text-xs text-[#8E6D53] mt-1">
+              Gross Profit: <span className="font-semibold text-emerald-700">{formatRupiah(grossProfit)}</span>
+            </p>
           </div>
 
           <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] p-5 shadow-xs hover:border-[#D5C1A1] transition-all">
@@ -256,12 +291,47 @@ export default async function ReportPage({
                 {isThisShift
                   ? activeShift
                     ? `Current shift (#${activeShift.id})`
-                    : 'No active shift'
+                    : targetShift
+                      ? `Latest closed shift (#${targetShift.id})`
+                      : 'No active shift'
                   : daysInRange
                     ? `Across ${daysInRange} selected days`
                     : 'All-time overview'}
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* PAYMENT METHOD BREAKDOWN */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+          <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] p-4 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-[#8E6D53]">Cash Sales</p>
+              <p className="text-lg font-bold text-[#6B4227] mt-0.5">{formatRupiah(cashRevenue)}</p>
+            </div>
+            <span className="px-2.5 py-1 bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] rounded-lg text-xs font-bold">
+              {cashCount} orders
+            </span>
+          </div>
+
+          <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] p-4 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-[#8E6D53]">QRIS Sales</p>
+              <p className="text-lg font-bold text-[#6B4227] mt-0.5">{formatRupiah(qrisRevenue)}</p>
+            </div>
+            <span className="px-2.5 py-1 bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] rounded-lg text-xs font-bold">
+              {qrisCount} orders
+            </span>
+          </div>
+
+          <div className="bg-[#FFFDF8] rounded-2xl border border-[#E5D5BC] p-4 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-[#8E6D53]">Debit / Card Sales</p>
+              <p className="text-lg font-bold text-[#6B4227] mt-0.5">{formatRupiah(debitRevenue)}</p>
+            </div>
+            <span className="px-2.5 py-1 bg-[#FAF0DA] text-[#6B4227] border border-[#E5D5BC] rounded-lg text-xs font-bold">
+              {debitCount} orders
+            </span>
           </div>
         </div>
       </div>
@@ -367,9 +437,9 @@ export default async function ReportPage({
             <div className="p-4 sm:p-6">
               {topFlavors.length > 0 ? (
                 <div className="space-y-3">
-                  {topFlavors.map(([flavorName, qty], index) => (
+                  {topFlavors.map((item, index) => (
                     <div
-                      key={flavorName}
+                      key={item.name}
                       className="flex items-center justify-between p-3 bg-[#FAF0DA] rounded-xl border border-[#E5D5BC] gap-3"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -384,10 +454,15 @@ export default async function ReportPage({
                         >
                           {index + 1}
                         </div>
-                        <span className="text-xs font-bold text-[#3F2311] truncate">{flavorName}</span>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-[#3F2311] truncate block">{item.name}</span>
+                          <span className="text-[11px] text-[#8E6D53]">
+                            Single: {item.singleQty} pcs &bull; Bundle: {item.bundleQty} pcs
+                          </span>
+                        </div>
                       </div>
                       <span className="text-xs font-bold text-[#6B4227] whitespace-nowrap flex-shrink-0 bg-[#FFFDF8] px-2.5 py-1 rounded-md border border-[#E5D5BC]">
-                        {qty} <span className="font-normal text-[#8E6D53] text-[11px]">pcs baked</span>
+                        {item.totalQty} <span className="font-normal text-[#8E6D53] text-[11px]">pcs total</span>
                       </span>
                     </div>
                   ))}

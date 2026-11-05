@@ -559,7 +559,8 @@ export async function buildEscPosReceipt(
   includePhoto: boolean
 ): Promise<Uint8Array> {
   const trxCode = generateTrxCode(trx.id, trx.createdAt, trx.customer);
-  const totalQty = trx.items.reduce((acc, item) => acc + item.quantity, 0);
+  const safeItems = trx.items ?? [];
+  const totalQty = safeItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
   const divider = '-'.repeat(LINE_WIDTH);
 
   const bytes: number[] = [];
@@ -607,9 +608,9 @@ export async function buildEscPosReceipt(
   bytes.push(...encodeLine(divider));
 
   // 5. Items List (2-Line Moka POS Format)
-  for (const item of trx.items) {
+  for (const item of safeItems) {
     bytes.push(0x1b, 0x45, 0x01); // Bold On for product name
-    for (const line of wrapText(item.productName, LINE_WIDTH)) {
+    for (const line of wrapText(item.productName || 'Item', LINE_WIDTH)) {
       bytes.push(...encodeLine(line));
     }
     bytes.push(0x1b, 0x45, 0x00); // Bold Off

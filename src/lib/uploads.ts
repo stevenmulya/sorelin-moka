@@ -1,6 +1,5 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { UserError } from '@/lib/validation';
 
 /**
@@ -70,29 +69,10 @@ export function resolveUploadPath(name: string): string | null {
   return full;
 }
 
-async function ensureDir() {
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
-}
-
-async function writeUniqueOrDataUrl(prefix: string, kind: Detected, buf: Buffer): Promise<string> {
-  // Always prefer storing uploaded files on local disk so the database only holds a lightweight URL string ('/uploads/<name>').
-  // This prevents SQLite/Turso from bloating with multi-megabyte base64 strings that choke network and query performance.
-  const isServerless = Boolean(
-    process.env.VERCEL ||
-    process.env.NETLIFY ||
-    process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    process.env.USE_DATA_URLS === 'true'
-  );
-  if (!isServerless) {
-    try {
-      await ensureDir();
-      const name = `${prefix}${randomUUID()}.${kind.ext}`;
-      await fs.writeFile(path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, name), buf, { flag: 'wx' });
-      return `/uploads/${name}`;
-    } catch {
-      // Fallback only if local filesystem is read-only
-    }
-  }
+async function writeUniqueOrDataUrl(_prefix: string, kind: Detected, buf: Buffer): Promise<string> {
+  // Always return a self-contained canonical Data URL ('data:<mime>;base64,...') so that
+  // product photos and customer selfies are persisted directly inside the database (SQLite & Turso Cloud).
+  // This guarantees images NEVER disappear across server restarts, container redeploys, or Vercel serverless instances.
   return `data:${kind.mime};base64,${buf.toString('base64')}`;
 }
 

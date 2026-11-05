@@ -1,167 +1,154 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
 
-const prisma = new PrismaClient();
-
-async function main() {
-  // Main product: Artisan Korean Saltbread with multiple priced variants
-  const saltbreadItem = {
-    name: 'Korean Saltbread (Fresh Baked)',
-    costPrice: 7000,
+export const INITIAL_BAZAAR_PRODUCTS = [
+  {
+    name: 'Salt Bread Original',
+    category: 'Saltbread',
+    price: 18000,
+    costPrice: 13000,
+    stock: 0,
+    priority: 10,
+    isBestSeller: true,
+    isFavorite: true,
+    description: 'Classic artisanal Korean saltbread with French butter and flaky sea salt crystals.',
+  },
+  {
+    name: 'Salt Bread Garlic Butter',
+    category: 'Saltbread',
+    price: 20000,
+    costPrice: 14000,
+    stock: 0,
+    priority: 9,
+    isBestSeller: true,
+    isFavorite: false,
+    description: 'Infused with roasted garlic butter and parsley for a savory aroma.',
+  },
+  {
+    name: 'Salt Bread Kinako Ogura Mochi',
+    category: 'Saltbread',
+    price: 22000,
+    costPrice: 14000,
+    stock: 0,
+    priority: 8,
+    isBestSeller: false,
+    isFavorite: false,
+    description: 'Filled with sweet red bean (ogura) and chewy mochi, dusted with fragrant kinako.',
+  },
+  {
+    name: 'Salt Bread Double Cheese Honey',
+    category: 'Saltbread',
+    price: 23000,
+    costPrice: 16000,
+    stock: 0,
+    priority: 7,
+    isBestSeller: false,
+    isFavorite: true,
+    description: 'Stuffed with melted cheddar and mozzarella, drizzled with pure floral honey.',
+  },
+  {
+    name: 'Salt Bread Double Chocolate',
+    category: 'Saltbread',
+    price: 23000,
+    costPrice: 17000,
+    stock: 0,
+    priority: 6,
+    isBestSeller: false,
+    isFavorite: false,
+    description: 'Filled with rich Belgian dark chocolate that melts when warmed.',
+  },
+  {
+    name: 'Salt Bread Smoked Ham and Cheese',
+    category: 'Saltbread',
+    price: 25000,
+    costPrice: 20000,
+    stock: 0,
+    priority: 5,
+    isBestSeller: true,
+    isFavorite: false,
+    description: 'Savory smoked ham, melted mozzarella, and fragrant glaze.',
+  },
+  {
+    name: 'Thai Milk Tea',
+    category: 'Beverage',
     price: 15000,
-    stock: 70,
-    type: 'Saltbread',
-    description: 'Crispy outer crust, tender butter-infused center topped with coarse sea salt crystals.',
-    variants: [
-      { name: 'Original Sea Salt', price: 15000, costPrice: 6500, stock: 25, bundleUpcharge: 0 },
-      { name: 'Garlic Butter', price: 18000, costPrice: 8000, stock: 18, bundleUpcharge: 0 },
-      { name: 'Double Cheese Melt', price: 20000, costPrice: 9000, stock: 15, bundleUpcharge: 0 },
-      { name: 'Dark Chocolate Melt', price: 20000, costPrice: 8500, stock: 12, bundleUpcharge: 0 },
-      { name: 'Truffle Ham & Cheese', price: 24000, costPrice: 12500, stock: 10, bundleUpcharge: 3000 },
-    ],
+    costPrice: 7000,
+    stock: 0,
+    priority: 10,
+    isBestSeller: true,
+    isFavorite: false,
+    description: 'Authentic brewed Thai tea with sweet condensed milk over ice.',
+  },
+  {
+    name: 'Thai Tea Honey Lemon',
+    category: 'Beverage',
+    price: 15000,
+    costPrice: 7000,
+    stock: 0,
+    priority: 9,
+    isBestSeller: false,
+    isFavorite: true,
+    description: 'Refreshing iced tea with natural honey and fresh squeezed lemon.',
+  },
+] as const;
+
+export async function seedCleanInitialProducts() {
+  console.log('🧹 Clearing all existing seed, transaction, shift, and catalog data...');
+
+  await prisma.transactionItem.deleteMany({});
+  await prisma.transaction.deleteMany({});
+  await prisma.inventoryLog.deleteMany({});
+  await prisma.expense.deleteMany({});
+  await prisma.shift.deleteMany({});
+  await prisma.productVariantOption.deleteMany({});
+  await prisma.productImage.deleteMany({});
+  await prisma.product.deleteMany({});
+  await prisma.productVariant.deleteMany({});
+  await prisma.productType.deleteMany({});
+
+  console.log('🌱 Creating categories (Saltbread & Beverage)...');
+  const catSaltbread = await prisma.productType.create({ data: { name: 'Saltbread' } });
+  const catBeverage = await prisma.productType.create({ data: { name: 'Beverage' } });
+
+  const categoryMap: Record<string, number> = {
+    Saltbread: catSaltbread.id,
+    Beverage: catBeverage.id,
   };
 
-  const bundles = [
-    {
-      name: 'Box of 3 (Bundle Package)',
-      costPrice: 24000,
-      price: 48000,
-      stock: 30,
-      type: 'Bundling',
-      isBundle: true,
-      bundleQuota: 3,
-      description: 'Choose any 3 saltbread flavors in a luxury bakery gift box.',
-    },
-    {
-      name: 'Box of 6 Family Pack (Bundle Package)',
-      costPrice: 48000,
-      price: 92000,
-      stock: 20,
-      type: 'Bundling',
-      isBundle: true,
-      bundleQuota: 6,
-      description: 'Choose any 6 saltbread flavors to share with family and friends.',
-    },
-  ];
-
-  // Upsert the main Saltbread product
-  const existingSaltbread = await prisma.product.findFirst({ where: { name: saltbreadItem.name } });
-  let saltbreadId: number;
-
-  if (existingSaltbread) {
-    saltbreadId = existingSaltbread.id;
-    await prisma.product.update({
-      where: { id: saltbreadId },
+  console.log('🥖 Seeding 8 official initial products (Stock = 0)...');
+  for (const item of INITIAL_BAZAAR_PRODUCTS) {
+    await prisma.product.create({
       data: {
-        costPrice: saltbreadItem.costPrice,
-        price: saltbreadItem.price,
-        stock: saltbreadItem.variants.reduce((sum, v) => sum + v.stock, 0),
-        description: saltbreadItem.description,
+        name: item.name,
+        typeId: categoryMap[item.category],
+        price: item.price,
+        costPrice: item.costPrice,
+        stock: item.stock,
+        priority: item.priority,
+        isBestSeller: item.isBestSeller,
+        isFavorite: item.isFavorite,
+        isBundle: false,
+        bundleQuota: 0,
         isActive: true,
+        description: item.description,
       },
     });
-  } else {
-    const created = await prisma.product.create({
-      data: {
-        name: saltbreadItem.name,
-        costPrice: saltbreadItem.costPrice,
-        price: saltbreadItem.price,
-        stock: saltbreadItem.variants.reduce((sum, v) => sum + v.stock, 0),
-        description: saltbreadItem.description,
-        priority: 100,
-        isActive: true,
-        type: {
-          connectOrCreate: {
-            where: { name: saltbreadItem.type },
-            create: { name: saltbreadItem.type },
-          },
-        },
-      },
-    });
-    saltbreadId = created.id;
+    console.log(
+      `   ✅ [${item.category}] ${item.name} — Jual: Rp ${item.price.toLocaleString('id-ID')} | Modal: Rp ${item.costPrice.toLocaleString('id-ID')} | Stock: ${item.stock}`,
+    );
   }
 
-  // Upsert Variant Options
-  for (let i = 0; i < saltbreadItem.variants.length; i++) {
-    const v = saltbreadItem.variants[i];
-    const existingVariant = await prisma.productVariantOption.findFirst({
-      where: { productId: saltbreadId, name: v.name },
-    });
-
-    if (existingVariant) {
-      await prisma.productVariantOption.update({
-        where: { id: existingVariant.id },
-        data: {
-          price: v.price,
-          costPrice: v.costPrice,
-          stock: v.stock,
-          bundleUpcharge: v.bundleUpcharge,
-          priority: saltbreadItem.variants.length - i,
-          isActive: true,
-        },
-      });
-    } else {
-      await prisma.productVariantOption.create({
-        data: {
-          productId: saltbreadId,
-          name: v.name,
-          price: v.price,
-          costPrice: v.costPrice,
-          stock: v.stock,
-          bundleUpcharge: v.bundleUpcharge,
-          priority: saltbreadItem.variants.length - i,
-          isActive: true,
-        },
-      });
-    }
-  }
-
-  // Upsert Bundles
-  for (const b of bundles) {
-    const existingBundle = await prisma.product.findFirst({ where: { name: b.name } });
-    if (existingBundle) {
-      await prisma.product.update({
-        where: { id: existingBundle.id },
-        data: {
-          costPrice: b.costPrice,
-          price: b.price,
-          stock: b.stock,
-          isBundle: true,
-          bundleQuota: b.bundleQuota,
-          description: b.description,
-          isActive: true,
-        },
-      });
-    } else {
-      await prisma.product.create({
-        data: {
-          name: b.name,
-          costPrice: b.costPrice,
-          price: b.price,
-          stock: b.stock,
-          isBundle: true,
-          bundleQuota: b.bundleQuota,
-          description: b.description,
-          priority: 90,
-          isActive: true,
-          type: {
-            connectOrCreate: {
-              where: { name: b.type },
-              create: { name: b.type },
-            },
-          },
-        },
-      });
-    }
-  }
-
-  console.log('Seeded Saltbread master variants and bundles successfully!');
+  const totalProducts = await prisma.product.count();
+  const totalBundles = await prisma.product.count({ where: { isBundle: true } });
+  console.log(`\n🎉 Clean seed complete! Total products: ${totalProducts} (Bundles: ${totalBundles}, Initial Stock: 0).`);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  seedCleanInitialProducts()
+    .catch((e) => {
+      console.error('❌ Seed failed:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

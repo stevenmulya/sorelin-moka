@@ -67,33 +67,37 @@ export default function BundleForm({
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
 
-  // Bundle Slot Rules
+  // Accurate non-bundle categories synced with actual products
+  const validCategories = useMemo(() => {
+    const map = new Map<string, { id: number; name: string; count: number }>();
+    for (const c of categories) {
+      const clean = c.name.trim();
+      if (!clean || clean.toLowerCase() === 'bundle' || clean.toLowerCase() === 'bundling') continue;
+      const count = availableProducts.filter(
+        (p) => p.type?.name?.trim().toLowerCase() === clean.toLowerCase()
+      ).length;
+      map.set(clean.toLowerCase(), { id: c.id, name: clean, count });
+    }
+    for (const p of availableProducts) {
+      const catName = p.type?.name?.trim();
+      if (!catName || catName.toLowerCase() === 'bundle' || catName.toLowerCase() === 'bundling') continue;
+      const key = catName.toLowerCase();
+      if (!map.has(key)) {
+        const count = availableProducts.filter(
+          (ap) => ap.type?.name?.trim().toLowerCase() === key
+        ).length;
+        map.set(key, { id: map.size + 1000, name: catName, count });
+      }
+    }
+    return Array.from(map.values());
+  }, [categories, availableProducts]);
+
+  // Bundle Slot Rules: empty when creating a new bundle, loaded from config when editing
   const initialSlots = useMemo(() => {
-    const config = parseBundleConfig(initialData?.availableVariants);
-    if (config.slots.length > 0) return config.slots;
-
-    const defaultSaltbread =
-      categories.find((c) => /saltbread|bread|roti/i.test(c.name))?.name ||
-      categories[0]?.name ||
-      'Saltbread';
-    const defaultMineral =
-      availableProducts.find((p) => /mineral|water/i.test(p.name))?.name || 'Air Mineral';
-
-    return [
-      {
-        id: 'slot-1',
-        type: 'CATEGORY' as const,
-        categoryName: defaultSaltbread,
-        quota: initialData?.bundleQuota || 2,
-      },
-      {
-        id: 'slot-2',
-        type: 'PRODUCT' as const,
-        productName: defaultMineral,
-        quantity: 1,
-      },
-    ];
-  }, [initialData, categories, availableProducts]);
+    if (!initialData) return [];
+    const config = parseBundleConfig(initialData.availableVariants);
+    return config.slots;
+  }, [initialData]);
 
   const [slots, setSlots] = useState<BundleSlotRule[]>(initialSlots);
 
@@ -141,15 +145,16 @@ export default function BundleForm({
   };
 
   // Strictly Derived Cost Price (HPP) - cannot be edited manually
-  const derivedCostPrice = useMemo(() => {
-    return slots.reduce((total, s) => {
-      const info = getSlotCostInfo(s);
-      return total + info.totalCost;
-    }, 0);
-  }, [slots, availableProducts]);
+  const derivedCostPrice = slots.reduce((total, s) => {
+    const info = getSlotCostInfo(s);
+    return total + info.totalCost;
+  }, 0);
 
   // Selling Price & Discount %
-  const [price, setPrice] = useState<number>(initialData?.price ?? 45000);
+  const [priceRaw, setPriceRaw] = useState<string>(
+    initialData?.price !== undefined ? String(initialData.price) : ''
+  );
+  const price = Number(priceRaw) || 0;
 
   const initialDiscountPercent = (() => {
     if (initialData?.discountPrice && initialData?.price && initialData.discountPrice < initialData.price) {
@@ -170,9 +175,9 @@ export default function BundleForm({
 
   // Add Slot Form State
   const [newSlotType, setNewSlotType] = useState<'CATEGORY' | 'PRODUCT'>('CATEGORY');
-  const [newCategoryName, setNewCategoryName] = useState<string>(categories[0]?.name || 'Saltbread');
-  const [newQuota, setNewQuota] = useState<number>(2);
-  const [newProductName, setNewProductName] = useState<string>(availableProducts[0]?.name || 'Air Mineral');
+  const [newCategoryName, setNewCategoryName] = useState<string>(validCategories[0]?.name || '');
+  const [newQuota, setNewQuota] = useState<number>(1);
+  const [newProductName, setNewProductName] = useState<string>(availableProducts[0]?.name || '');
   const [newQuantity, setNewQuantity] = useState<number>(1);
   const [isAddingSlot, setIsAddingSlot] = useState<boolean>(false);
 
@@ -209,28 +214,76 @@ export default function BundleForm({
   const handleAddSlot = () => {
     if (newSlotType === 'CATEGORY') {
       if (!newCategoryName) return;
-      setSlots((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(36).substring(2, 9),
-          type: 'CATEGORY',
-          categoryName: newCategoryName,
-          quota: Math.max(1, newQuota),
-        },
-      ]);
+      const addQuota = Math.max(1, newQuota);
+      setSlots((prev) => {
+        const existingIdx = prev.findIndex(
+          (s) =>
+            s.type === 'CATEGORY' &&
+            s.categoryName?.trim().toLowerCase() === newCategoryName.trim().toLowerCase()
+        );
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            quota: (updated[existingIdx].quota || 1) + addQuota,
+          };
+          return updated;
+        }
+        return [
+          ...prev,
+          {
+            id: Math.random().toString(36).substring(2, 9),
+            type: 'CATEGORY',
+            categoryName: newCategoryName,
+            quota: addQuota,
+          },
+        ];
+      });
     } else {
       if (!newProductName) return;
-      setSlots((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(36).substring(2, 9),
-          type: 'PRODUCT',
-          productName: newProductName,
-          quantity: Math.max(1, newQuantity),
-        },
-      ]);
+      const addQty = Math.max(1, newQuantity);
+      const matchedProd = availableProducts.find(
+        (p) => p.name.trim().toLowerCase() === newProductName.trim().toLowerCase()
+      );
+      setSlots((prev) => {
+        const existingIdx = prev.findIndex(
+          (s) =>
+            s.type === 'PRODUCT' &&
+            s.productName?.trim().toLowerCase() === newProductName.trim().toLowerCase()
+        );
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            quantity: (updated[existingIdx].quantity || 1) + addQty,
+          };
+          return updated;
+        }
+        return [
+          ...prev,
+          {
+            id: Math.random().toString(36).substring(2, 9),
+            type: 'PRODUCT',
+            productId: matchedProd?.id,
+            productName: matchedProd?.name || newProductName,
+            quantity: addQty,
+          },
+        ];
+      });
     }
     setIsAddingSlot(false);
+  };
+
+  const handleUpdateSlotCount = (id: string, delta: number) => {
+    setSlots((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        if (s.type === 'CATEGORY') {
+          return { ...s, quota: Math.max(1, (s.quota || 1) + delta) };
+        }
+        return { ...s, quantity: Math.max(1, (s.quantity || 1) + delta) };
+      })
+    );
   };
 
   const handleRemoveSlot = (id: string) => {
@@ -288,8 +341,8 @@ export default function BundleForm({
       <ActionForm action={isEditing ? updateProduct : createProduct} className="space-y-6">
         {isEditing && <input type="hidden" name="id" value={initialData.id} />}
         <input type="hidden" name="isBundle" value="true" />
-        <input type="hidden" name="type" value="Bundle" />
-        <input type="hidden" name="bundleQuota" value={Math.max(1, totalCategoryQuota || 1)} />
+        <input type="hidden" name="type" value="" />
+        <input type="hidden" name="bundleQuota" value={Math.max(1, totalCategoryQuota + totalFixedCount)} />
         <input type="hidden" name="availableVariants" value={serializedConfig} />
         {/* Strictly Derived Cost Price - Submitted directly to database */}
         <input type="hidden" name="costPrice" value={derivedCostPrice} />
@@ -313,7 +366,7 @@ export default function BundleForm({
                   name="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Sorelin Combo (2 Bread + 1 Coffee + Mineral Water)"
+                  placeholder="Enter bundle name"
                   required
                   maxLength={100}
                   className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-medium text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
@@ -328,7 +381,7 @@ export default function BundleForm({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   maxLength={500}
-                  placeholder="Brief description of this combo package for customers..."
+                  placeholder="Enter bundle description"
                   className="w-full px-3.5 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-xs text-[#3F2311] placeholder-[#9E826B] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all font-normal"
                 />
               </div>
@@ -388,7 +441,7 @@ export default function BundleForm({
                         <span className="text-xs font-semibold text-[#3F2311]">By Category</span>
                       </div>
                       <span className="text-[10px] text-[#8E6D53] block font-light leading-relaxed">
-                        Customer chooses flavor options from this category (e.g. 2x Saltbread, 1x Coffee).
+                        Customer chooses flavor options from this category.
                       </span>
                     </button>
 
@@ -406,7 +459,7 @@ export default function BundleForm({
                         <span className="text-xs font-semibold text-[#3F2311]">By Product Item</span>
                       </div>
                       <span className="text-[10px] text-[#8E6D53] block font-light leading-relaxed">
-                        Specific product automatically included in the package (e.g. 1x Mineral Water).
+                        Specific product automatically included in the package.
                       </span>
                     </button>
                   </div>
@@ -423,9 +476,9 @@ export default function BundleForm({
                             onChange={(e) => setNewCategoryName(e.target.value)}
                             className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-medium text-[#3F2311] focus:ring-2 focus:ring-[#6B4227]/15 cursor-pointer"
                           >
-                            {categories.map((c) => (
+                            {validCategories.map((c) => (
                               <option key={c.id} value={c.name}>
-                                {c.name}
+                                {c.name} ({c.count} products)
                               </option>
                             ))}
                           </select>
@@ -441,6 +494,7 @@ export default function BundleForm({
                             onChange={(e) => setNewQuota(Math.max(1, Number(e.target.value)))}
                             min={1}
                             max={20}
+                            placeholder="Enter choice quota"
                             className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-semibold text-[#6B4227] focus:ring-2 focus:ring-[#6B4227]/15"
                           />
                         </div>
@@ -473,7 +527,7 @@ export default function BundleForm({
                           >
                             {availableProducts.map((p) => (
                               <option key={p.id} value={p.name}>
-                                {p.name} {p.type?.name ? `(${p.type.name})` : ''} - Cost: {formatRupiah(p.costPrice)}
+                                {p.name} {p.type?.name ? `(${p.type.name})` : ''} — Sell: {formatRupiah(p.price)} | Cost: {formatRupiah(p.costPrice)}
                               </option>
                             ))}
                           </select>
@@ -489,6 +543,7 @@ export default function BundleForm({
                             onChange={(e) => setNewQuantity(Math.max(1, Number(e.target.value)))}
                             min={1}
                             max={20}
+                            placeholder="Enter item quantity"
                             className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-semibold text-[#6B4227] focus:ring-2 focus:ring-[#6B4227]/15"
                           />
                         </div>
@@ -591,14 +646,37 @@ export default function BundleForm({
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSlot(s.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateSlotCount(s.id, -1)}
+                              className="px-2 py-1 text-xs font-bold text-[#6B4227] hover:bg-[#FAF0DA] transition-colors cursor-pointer"
+                              title="Decrease quantity"
+                            >
+                              -
+                            </button>
+                            <span className="px-2 py-1 text-xs font-semibold text-[#3F2311] border-x border-[#E5D5BC]">
+                              {s.type === 'CATEGORY' ? s.quota : s.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateSlotCount(s.id, 1)}
+                              className="px-2 py-1 text-xs font-bold text-[#6B4227] hover:bg-[#FAF0DA] transition-colors cursor-pointer"
+                              title="Increase quantity"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSlot(s.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Remove item"
+                          >
+                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })
@@ -677,11 +755,11 @@ export default function BundleForm({
                   <input
                     type="number"
                     name="price"
-                    value={price}
-                    onChange={(e) => setPrice(Math.max(1, Number(e.target.value)))}
+                    value={priceRaw}
+                    onChange={(e) => setPriceRaw(e.target.value)}
                     min={1}
                     required
-                    placeholder="e.g. 45000"
+                    placeholder="Enter selling price"
                     className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                   />
                   <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
@@ -706,7 +784,7 @@ export default function BundleForm({
                       }}
                       min={0}
                       max={99}
-                      placeholder="0"
+                      placeholder="Enter discount percentage"
                       className="w-full px-3.5 py-2.5 pr-8 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                     />
                     <Percent className="h-3.5 w-3.5 text-[#8E6D53] absolute right-3 top-3 pointer-events-none" strokeWidth={1.5} />

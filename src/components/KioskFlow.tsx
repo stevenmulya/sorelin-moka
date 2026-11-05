@@ -16,7 +16,12 @@ import {
 } from 'lucide-react';
 import { submitKioskOrder } from '@/app/actions';
 import { effectivePrice, formatRupiah } from '@/lib/utils';
-import { parseBundleConfig } from '@/lib/bundle-config';
+import {
+  parseBundleConfig,
+  getCartProductDemand,
+  canIncrementCartItem,
+  getBundleMaxStock,
+} from '@/lib/bundle-config';
 import ItemCustomizerModal, {
   type CustomizationResult,
   type ProductVariantItem,
@@ -177,51 +182,46 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     return allAvailableVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
   }, [allAvailableVariants]);
 
-  // Check if a bundle package can be satisfied by physical inventory
-  const isBundleAvailable = useCallback(
+  // Combined product demand across all single items and bundle contents in cart
+  const cartDemand = useMemo(() => {
+    return getCartProductDemand(cart, products);
+  }, [cart, products]);
+
+  // Periodically sync Kiosk catalog & stock when idle on start/menu screen
+  useEffect(() => {
+    if (step !== 'start' && (step !== 'menu' || customizingProduct || selectedProduct)) return;
+    const timer = setInterval(() => {
+      router.refresh();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [step, customizingProduct, selectedProduct, router]);
+
+  // Check if a bundle package has any stock in store (ignoring cart)
+  const isBundleInStockInStore = useCallback(
     (bundle: KioskProduct) => {
       if (!bundle.isBundle) return true;
       const config = parseBundleConfig(bundle.availableVariants);
-
       if (config.slots && config.slots.length > 0) {
-        for (const slot of config.slots) {
-          if (slot.type === 'CATEGORY' && slot.categoryName) {
-            const catName = slot.categoryName.trim().toLowerCase();
-            const quota = slot.quota || 1;
-            const matching = products.filter(
-              (p) => p.type?.name?.trim().toLowerCase() === catName && !p.isBundle
-            );
-            const totalStock = matching.reduce((sum, p) => {
-              if (p.variants && p.variants.length > 0) {
-                return sum + p.variants.reduce((vSum, v) => vSum + (v.stock || 0), 0);
-              }
-              return sum + (p.stock || 0);
-            }, 0);
-
-            if (totalStock < quota) return false;
-          } else if (slot.type === 'PRODUCT') {
-            const qty = slot.quantity || 1;
-            const matching = products.find(
-              (p) =>
-                (slot.productId && p.id === slot.productId) ||
-                (slot.productName && p.name.trim().toLowerCase() === slot.productName.trim().toLowerCase())
-            );
-            const pStock = matching
-              ? matching.variants && matching.variants.length > 0
-                ? matching.variants.reduce((s, v) => s + (v.stock || 0), 0)
-                : matching.stock
-              : 0;
-            if (pStock < qty) return false;
-          }
-        }
-        return true;
+        return getBundleMaxStock(bundle, products) > 0;
       }
-
-      // Legacy fallback: check total bakery stock >= quota
       const quota = bundle.bundleQuota || 2;
       return totalBakeryStock >= quota;
     },
     [products, totalBakeryStock]
+  );
+
+  // Check if another box of this bundle can be added given current cart contents
+  const isBundleAvailable = useCallback(
+    (bundle: KioskProduct) => {
+      if (!bundle.isBundle) return true;
+      const config = parseBundleConfig(bundle.availableVariants);
+      if (config.slots && config.slots.length > 0) {
+        return getBundleMaxStock(bundle, products, cartDemand) > 0;
+      }
+      const quota = bundle.bundleQuota || 2;
+      return totalBakeryStock >= quota;
+    },
+    [products, cartDemand, totalBakeryStock]
   );
 
   const getItemPrice = useCallback((item: KioskCartItem) => {
@@ -240,9 +240,9 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
   );
 
   const addToCart = (product: KioskProduct) => {
-    const currentQty = getCartQuantity(product.id);
+    const usedQty = cartDemand.get(product.id) ?? 0;
     const hasVariants = product.isBundle || Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
-    if (!hasVariants && product.stock - currentQty <= 0) return;
+    if (!hasVariants && product.stock - usedQty <= 0) return;
 
     // If item has customizable flavor variants or is a bundle, open the customizer modal
     if (product.availableVariants || product.isBundle || (product.variants && product.variants.length > 0)) {
@@ -254,9 +254,10 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     const cartId = `${product.id}-standard`;
     const eff = effectivePrice(product);
     setCart((prev) => {
+      const currentDemand = getCartProductDemand(prev, products);
+      if ((currentDemand.get(product.id) ?? 0) >= product.stock) return prev;
       const existing = prev.find((item) => item.cartId === cartId);
       if (existing) {
-        if (currentQty >= product.stock) return prev;
         return prev.map((item) =>
           item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item
         );
@@ -310,19 +311,13 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     setCart((prev) => {
       const item = prev.find((i) => i.cartId === cartId);
       if (!item) return prev;
-      const currentQty = prev
-        .filter((i) => i.product.id === item.product.id)
-        .reduce((sum, i) => sum + i.quantity, 0);
-      if (item.product.isBundle) {
-        const quota = item.product.bundleQuota || 3;
-        if ((currentQty + 1) * quota > totalBakeryStock) return prev;
-      } else if (item.variantOptionId) {
+      if (item.variantOptionId) {
         const matchingVar = allAvailableVariants.find((v) => v.id === item.variantOptionId);
         const currentVarQty = prev
           .filter((i) => i.variantOptionId === item.variantOptionId)
           .reduce((sum, i) => sum + i.quantity, 0);
         if (matchingVar && currentVarQty >= matchingVar.stock) return prev;
-      } else if (currentQty >= item.product.stock) {
+      } else if (!canIncrementCartItem(item, prev, products)) {
         return prev;
       }
       return prev.map((i) => (i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i));
@@ -601,7 +596,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     const selectedCartQty = selectedProduct ? getCartQuantity(selectedProduct.id) : 0;
     const isSelectedOutOfStock = selectedProduct
       ? selectedProduct.isBundle
-        ? !isBundleAvailable(selectedProduct)
+        ? !isBundleInStockInStore(selectedProduct)
         : (selectedProduct.variants && selectedProduct.variants.length > 0)
         ? selectedProduct.variants.every((v) => v.stock <= 0)
         : selectedProduct.stock <= 0
@@ -609,7 +604,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
     const selectedAtMaxStock = selectedProduct
       ? isSelectedOutOfStock || (selectedProduct.isBundle
         ? !isBundleAvailable(selectedProduct)
-        : selectedCartQty >= selectedProduct.stock)
+        : (cartDemand.get(selectedProduct.id) ?? 0) >= selectedProduct.stock)
       : false;
     const selectedImages = selectedProduct?.images ?? [];
 
@@ -742,10 +737,9 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
             {currentItems.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-7 items-start">
                 {currentItems.map((product) => {
-                  const hasVariants = product.isBundle || Boolean(product.variants && product.variants.length > 0) || Boolean(product.availableVariants);
                   const variantsAllOut = Boolean(product.variants && product.variants.length > 0 && product.variants.every((v) => v.stock <= 0));
                   const isOutOfStock = product.isBundle
-                    ? !isBundleAvailable(product)
+                    ? !isBundleInStockInStore(product)
                     : (variantsAllOut || product.stock <= 0);
                   const eff = effectivePrice(product);
                   const hasDiscount = Boolean(
@@ -757,7 +751,8 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
                     ? Math.round(((product.price - product.discountPrice!) / product.price) * 100)
                     : 0;
                   const inCartQty = getCartQuantity(product.id);
-                  const atMaxStock = isOutOfStock || (product.isBundle ? !isBundleAvailable(product) : inCartQty >= product.stock);
+                  const usedTotalInCart = cartDemand.get(product.id) ?? 0;
+                  const atMaxStock = isOutOfStock || (product.isBundle ? !isBundleAvailable(product) : usedTotalInCart >= product.stock);
 
                   return (
                     /* Torn Paper Slip Card with Top Masking Tape */
@@ -1214,11 +1209,12 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
             product={customizingProduct}
             maxAvailableStock={
               customizingProduct.isBundle
-                ? totalBakeryStock
-                : customizingProduct.stock - getCartQuantity(customizingProduct.id)
+                ? getBundleMaxStock(customizingProduct, products, cartDemand)
+                : Math.max(0, customizingProduct.stock - (cartDemand.get(customizingProduct.id) ?? 0))
             }
             allAvailableVariants={allAvailableVariants}
             allProducts={products}
+            cartDemand={cartDemand}
             onClose={() => setCustomizingProduct(null)}
             onConfirm={handleCustomizerConfirm}
           />
@@ -1250,8 +1246,7 @@ export default function KioskFlow({ products }: { products: KioskProduct[] }) {
           <div className="bg-[#FAF0DA] rounded-sm border-2 border-[#6B4227] p-4 divide-y divide-[#6B4227]/20 shadow-[4px_4px_0px_#6B4227]">
             {cart.map((item) => {
               const unitPrice = getItemPrice(item);
-              const totalInCartForProduct = getCartQuantity(item.product.id);
-              const atMax = item.product.isBundle ? false : totalInCartForProduct >= item.product.stock;
+              const atMax = !canIncrementCartItem(item, cart, products);
               return (
                 <div key={item.cartId} className="py-3 flex items-center justify-between first:pt-0 last:pb-0 gap-3">
                   <div className="flex-1 pr-2">

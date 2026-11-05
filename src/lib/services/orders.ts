@@ -4,6 +4,7 @@ import { KANBAN_STATUSES, PAID_STATUSES, PAYMENT_METHODS, STATUS, type PaymentMe
 import { UserError, cleanStr, isEmail, parseInteger, requireInteger } from '@/lib/validation';
 import { effectivePrice, formatRupiah } from '@/lib/utils';
 import { summarizeShift } from '@/lib/services/shifts';
+import { parseBundleConfig } from '@/lib/bundle-config';
 
 export type Db = Prisma.TransactionClient;
 
@@ -28,7 +29,7 @@ const MAX_QTY = 999;
  */
 export function parseBundleFlavors(contents?: string | null): Array<{ flavorName: string; quantity: number }> {
   if (!contents) return [];
-  const results: Array<{ flavorName: string; quantity: number }> = [];
+  const merged = new Map<string, { flavorName: string; quantity: number }>();
   const clean = contents
     .replace(/\(\+[^)]+\)/g, '')
     .replace(/\(include\)/gi, '')
@@ -36,19 +37,31 @@ export function parseBundleFlavors(contents?: string | null): Array<{ flavorName
     .trim();
   const parts = clean.split(/[,+]|(?:\s*\+\s*)/).map((p) => p.trim()).filter(Boolean);
   for (const part of parts) {
+    let qty = 1;
+    let name = '';
     const prefixMatch = part.match(/^\(?(\d+)\s*x\)?\s*(.+)$/i);
     if (prefixMatch) {
-      results.push({ quantity: parseInt(prefixMatch[1], 10), flavorName: prefixMatch[2].replace(/[()]/g, '').trim() });
-      continue;
+      qty = Math.max(1, parseInt(prefixMatch[1], 10));
+      name = prefixMatch[2].replace(/[()]/g, '').trim();
+    } else {
+      const suffixMatch = part.match(/^(.+?)\s*\(?(\d+)\s*x\)?$/i);
+      if (suffixMatch) {
+        qty = Math.max(1, parseInt(suffixMatch[2], 10));
+        name = suffixMatch[1].replace(/[()]/g, '').trim();
+      } else {
+        name = part.replace(/[()]/g, '').trim();
+      }
     }
-    const suffixMatch = part.match(/^(.+?)\s*\(?(\d+)\s*x\)?$/i);
-    if (suffixMatch) {
-      results.push({ quantity: parseInt(suffixMatch[2], 10), flavorName: suffixMatch[1].replace(/[()]/g, '').trim() });
-      continue;
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const existing = merged.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      merged.set(key, { flavorName: name, quantity: qty });
     }
-    results.push({ quantity: 1, flavorName: part.replace(/[()]/g, '').trim() });
   }
-  return results;
+  return Array.from(merged.values());
 }
 
 /**
@@ -93,7 +106,7 @@ export async function buildOrder(
     const variantOptionId = parseInteger(r.variantOptionId as number | string, { min: 1 });
     const selectedVariant = cleanStr(r.selectedVariant as string, 80) || null;
     const isBundle = Boolean(r.isBundle);
-    const bundleContents = cleanStr(r.bundleContents as string, 300) || null;
+    const bundleContents = cleanStr(r.bundleContents as string, 1000) || null;
     const notes = cleanStr(r.notes as string, 200) || null;
 
     parsedItems.push({ productId, quantity, variantOptionId, selectedVariant, isBundle, bundleContents, notes });
@@ -118,7 +131,9 @@ export async function buildOrder(
   const productById = new Map(products.map((p) => [p.id, p]));
   const variantById = new Map(allVariants.map((v) => [v.id, v]));
   const variantByName = new Map(allVariants.map((v) => [v.name.toLowerCase().trim(), v]));
-  const productByName = new Map(allActiveProducts.map((p) => [p.name.toLowerCase().trim(), p]));
+  const productByName = new Map(
+    allActiveProducts.filter((p) => !p.isBundle).map((p) => [p.name.toLowerCase().trim(), p])
+  );
 
   // Compute minimum effective price per product category (excluding bundles)
   const minPriceByCategory = new Map<string, number>();
@@ -149,32 +164,71 @@ export async function buildOrder(
     let finalVariantOptionId: number | null = null;
     let finalSelectedVariant: string | null = item.selectedVariant;
 
-    if (item.isBundle) {
+    const isBundleItem = Boolean(p.isBundle);
+
+    if (isBundleItem) {
       // Dynamic bundle box pricing: Base Box Price + Sum of Category Tier / Flavor Upcharges
       const basePrice = effectivePrice(p);
       let upchargePerBox = 0;
       let bundleCogsPerBox = 0;
 
+      const bundleConfig = parseBundleConfig(p.availableVariants);
+      const fixedProductQtyMap = new Map<string, number>();
+      let expectedSlotPieces = 0;
+      for (const slot of bundleConfig.slots) {
+        if (slot.type === 'PRODUCT' && slot.productName) {
+          const qty = Math.max(1, slot.quantity || 1);
+          const key = slot.productName.trim().toLowerCase();
+          fixedProductQtyMap.set(key, (fixedProductQtyMap.get(key) ?? 0) + qty);
+          expectedSlotPieces += qty;
+        } else if (slot.type === 'CATEGORY') {
+          expectedSlotPieces += Math.max(1, slot.quota || 1);
+        }
+      }
+
       const flavors = parseBundleFlavors(item.bundleContents);
+      if (flavors.length === 0) {
+        throw new UserError(`Please select bundle items for "${p.name}".`);
+      }
+
+      const totalSelectedPieces = flavors.reduce((sum, f) => sum + f.quantity, 0);
+      const requiredQuota = expectedSlotPieces > 0 ? expectedSlotPieces : (p.bundleQuota || 0);
+      if (requiredQuota > 0 && totalSelectedPieces !== requiredQuota) {
+        throw new UserError(
+          `Bundle "${p.name}" requires exactly ${requiredQuota} items (selected ${totalSelectedPieces}).`
+        );
+      }
+
+      for (const [fixedKey, requiredFixedQty] of fixedProductQtyMap.entries()) {
+        const selectedFixed = flavors.find((f) => f.flavorName.trim().toLowerCase() === fixedKey);
+        if (!selectedFixed || selectedFixed.quantity < requiredFixedQty) {
+          throw new UserError(`Bundle "${p.name}" is missing required fixed item "${fixedKey}".`);
+        }
+      }
+
       for (const f of flavors) {
         const cleanName = f.flavorName.toLowerCase().trim();
-        const vo = variantByName.get(cleanName);
-        if (vo) {
-          upchargePerBox += (vo.bundleUpcharge || 0) * f.quantity;
-          bundleCogsPerBox += (vo.costPrice || 0) * f.quantity;
-          variantStockDemanded.set(vo.id, (variantStockDemanded.get(vo.id) ?? 0) + f.quantity * item.quantity);
+        const matchingProd = productByName.get(cleanName);
+        if (matchingProd && !matchingProd.isBundle) {
+          const fixedQty = fixedProductQtyMap.get(cleanName) ?? 0;
+          const categorySelectedQty = Math.max(0, f.quantity - fixedQty);
+          const catName = matchingProd.type?.name?.trim().toLowerCase();
+          const minCatPrice = catName ? (minPriceByCategory.get(catName) ?? effectivePrice(matchingProd)) : effectivePrice(matchingProd);
+          const delta = Math.max(0, effectivePrice(matchingProd) - minCatPrice);
+          upchargePerBox += delta * categorySelectedQty;
+          bundleCogsPerBox += (matchingProd.costPrice || 0) * f.quantity;
+          productStockDemanded.set(
+            matchingProd.id,
+            (productStockDemanded.get(matchingProd.id) ?? 0) + f.quantity * item.quantity
+          );
         } else {
-          const matchingProd = productByName.get(cleanName);
-          if (matchingProd) {
-            const catName = matchingProd.type?.name?.trim().toLowerCase();
-            const minCatPrice = catName ? (minPriceByCategory.get(catName) ?? effectivePrice(matchingProd)) : effectivePrice(matchingProd);
-            const delta = Math.max(0, effectivePrice(matchingProd) - minCatPrice);
-            upchargePerBox += delta * f.quantity;
-            bundleCogsPerBox += (matchingProd.costPrice || 0) * f.quantity;
-            productStockDemanded.set(
-              matchingProd.id,
-              (productStockDemanded.get(matchingProd.id) ?? 0) + f.quantity * item.quantity
-            );
+          const vo = variantByName.get(cleanName);
+          if (vo) {
+            upchargePerBox += (vo.bundleUpcharge || 0) * f.quantity;
+            bundleCogsPerBox += (vo.costPrice || 0) * f.quantity;
+            variantStockDemanded.set(vo.id, (variantStockDemanded.get(vo.id) ?? 0) + f.quantity * item.quantity);
+          } else {
+            throw new UserError(`Bundle item "${f.flavorName}" is no longer available in the catalog.`);
           }
         }
       }
@@ -208,8 +262,8 @@ export async function buildOrder(
       costPrice: lineCostPrice,
       variantOptionId: finalVariantOptionId,
       selectedVariant: finalSelectedVariant,
-      isBundle: item.isBundle,
-      bundleContents: item.bundleContents,
+      isBundle: isBundleItem,
+      bundleContents: isBundleItem ? item.bundleContents : null,
       notes: item.notes,
     });
     total += linePrice * item.quantity;
@@ -357,17 +411,17 @@ export async function approvePaymentService(input: ApproveInput) {
     if (lock.count === 0) throw new UserError('This transaction has already been processed.');
 
     const productIds = trx.items.map((i) => i.productId).filter((id): id is number => id !== null);
-    const [existingProducts, allVariants, allActiveProducts] = await Promise.all([
+    const [existingProducts, allVariants, allNonBundleProducts] = await Promise.all([
       productIds.length > 0
         ? tx.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, isBundle: true } })
         : [],
       tx.productVariantOption.findMany(),
-      tx.product.findMany({ where: { isActive: true } }),
+      tx.product.findMany({ where: { isBundle: false }, orderBy: { isActive: 'asc' } }),
     ]);
     const productById = new Map(existingProducts.map((p) => [p.id, p]));
     const variantByName = new Map(allVariants.map((v) => [v.name.trim().toLowerCase(), v]));
     const variantById = new Map(allVariants.map((v) => [v.id, v]));
-    const productByName = new Map(allActiveProducts.map((p) => [p.name.trim().toLowerCase(), p]));
+    const productByName = new Map(allNonBundleProducts.map((p) => [p.name.trim().toLowerCase(), p]));
 
     // Aggregate deductions in memory to execute in parallel batches instead of sequential N+1 loops
     const productDeductions = new Map<number, number>();
@@ -398,75 +452,79 @@ export async function approvePaymentService(input: ApproveInput) {
         for (const bf of bundleFlavors) {
           const neededQty = bf.quantity * item.quantity;
           const cleanName = bf.flavorName.trim().toLowerCase();
-          const matchingVar = variantByName.get(cleanName);
-          if (matchingVar) {
-            variantDeductions.set(matchingVar.id, (variantDeductions.get(matchingVar.id) || 0) + neededQty);
-            affectedVariantProductIds.add(matchingVar.productId);
+          const matchingProd = productByName.get(cleanName);
+          if (matchingProd && !matchingProd.isBundle) {
+            productDeductions.set(matchingProd.id, (productDeductions.get(matchingProd.id) || 0) + neededQty);
             inventoryLogs.push({
-              productId: matchingVar.productId,
+              productId: matchingProd.id,
               type: 'OUT',
               quantity: neededQty,
               giver: null,
               receiver: trx.customer,
-              notes: `Bundle [${p.name}] flavor: ${matchingVar.name} (TRX-${trx.id})`,
+              notes: `Bundle [${p.name}] item: ${matchingProd.name} (TRX-${trx.id})`,
             });
           } else {
-            const matchingProd = productByName.get(cleanName);
-            if (matchingProd) {
-              productDeductions.set(matchingProd.id, (productDeductions.get(matchingProd.id) || 0) + neededQty);
+            const matchingVar = variantByName.get(cleanName);
+            if (matchingVar) {
+              variantDeductions.set(matchingVar.id, (variantDeductions.get(matchingVar.id) || 0) + neededQty);
+              affectedVariantProductIds.add(matchingVar.productId);
               inventoryLogs.push({
-                productId: matchingProd.id,
+                productId: matchingVar.productId,
                 type: 'OUT',
                 quantity: neededQty,
                 giver: null,
                 receiver: trx.customer,
-                notes: `Bundle item (TRX-${trx.id})`,
+                notes: `Bundle [${p.name}] flavor: ${matchingVar.name} (TRX-${trx.id})`,
               });
             }
           }
         }
       }
 
-      inventoryLogs.push({
-        productId: item.productId,
-        type: 'OUT',
-        quantity: item.quantity,
-        giver: null,
-        receiver: trx.customer,
-        notes: item.selectedVariant
-          ? `Sales: TRX-${trx.id} (${item.selectedVariant})`
-          : item.bundleContents
-            ? `Sales: TRX-${trx.id} [${item.bundleContents}]`
+      if (!p.isBundle) {
+        inventoryLogs.push({
+          productId: item.productId,
+          type: 'OUT',
+          quantity: item.quantity,
+          giver: null,
+          receiver: trx.customer,
+          notes: item.selectedVariant
+            ? `Sales: TRX-${trx.id} (${item.selectedVariant})`
             : `Sales: TRX-${trx.id}`,
-      });
+        });
+      }
     }
 
-    // Execute inventory logs and stock decrements concurrently
-    const batchUpdates: Promise<unknown>[] = [];
-
-    if (inventoryLogs.length > 0) {
-      batchUpdates.push(tx.inventoryLog.createMany({ data: inventoryLogs }));
-    }
-
+    // Execute stock decrements with atomic non-negative stock guards
     for (const [prodId, qty] of productDeductions.entries()) {
-      batchUpdates.push(
-        tx.product.update({
-          where: { id: prodId },
-          data: { stock: { decrement: qty } },
-        })
-      );
+      const updated = await tx.product.updateMany({
+        where: { id: prodId, stock: { gte: qty } },
+        data: { stock: { decrement: qty } },
+      });
+      if (updated.count === 0) {
+        const currentProd = await tx.product.findUnique({ where: { id: prodId }, select: { name: true, stock: true } });
+        throw new UserError(
+          `Insufficient stock for "${currentProd?.name ?? 'Product'}". Required: ${qty}, Available: ${currentProd?.stock ?? 0}.`
+        );
+      }
     }
 
     for (const [varId, qty] of variantDeductions.entries()) {
-      batchUpdates.push(
-        tx.productVariantOption.update({
-          where: { id: varId },
-          data: { stock: { decrement: qty } },
-        })
-      );
+      const updated = await tx.productVariantOption.updateMany({
+        where: { id: varId, stock: { gte: qty } },
+        data: { stock: { decrement: qty } },
+      });
+      if (updated.count === 0) {
+        const currentVar = await tx.productVariantOption.findUnique({ where: { id: varId }, select: { name: true, stock: true } });
+        throw new UserError(
+          `Insufficient tray stock for "${currentVar?.name ?? 'Variant'}". Required: ${qty}, Available: ${currentVar?.stock ?? 0}.`
+        );
+      }
     }
 
-    await Promise.all(batchUpdates);
+    if (inventoryLogs.length > 0) {
+      await tx.inventoryLog.createMany({ data: inventoryLogs });
+    }
 
     // 4. Re-synchronize parent product stocks for all affected flavor variants in parallel
     if (affectedVariantProductIds.size > 0) {
@@ -540,17 +598,17 @@ export async function cancelOrderService(input: CancelInput) {
 
     if (trx.status === STATUS.PREPARING || trx.status === STATUS.READY) {
       const productIds = trx.items.map((i) => i.productId).filter((id): id is number => id !== null);
-      const [existingProducts, allVariants, allActiveProducts] = await Promise.all([
+      const [existingProducts, allVariants, allNonBundleProducts] = await Promise.all([
         productIds.length > 0
           ? tx.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, isBundle: true } })
           : [],
         tx.productVariantOption.findMany(),
-        tx.product.findMany({ where: { isActive: true } }),
+        tx.product.findMany({ where: { isBundle: false }, orderBy: { isActive: 'asc' } }),
       ]);
       const productById = new Map(existingProducts.map((p) => [p.id, p]));
       const variantByName = new Map(allVariants.map((v) => [v.name.trim().toLowerCase(), v]));
       const variantById = new Map(allVariants.map((v) => [v.id, v]));
-      const productByName = new Map(allActiveProducts.map((p) => [p.name.trim().toLowerCase(), p]));
+      const productByName = new Map(allNonBundleProducts.map((p) => [p.name.trim().toLowerCase(), p]));
 
       const productRestorations = new Map<number, number>();
       const variantRestorations = new Map<number, number>();
@@ -577,43 +635,45 @@ export async function cancelOrderService(input: CancelInput) {
           for (const bf of bundleFlavors) {
             const restoreQty = bf.quantity * item.quantity;
             const cleanName = bf.flavorName.trim().toLowerCase();
-            const matchingVar = variantByName.get(cleanName);
-            if (matchingVar) {
-              variantRestorations.set(matchingVar.id, (variantRestorations.get(matchingVar.id) || 0) + restoreQty);
-              affectedVariantProductIds.add(matchingVar.productId);
+            const matchingProd = productByName.get(cleanName);
+            if (matchingProd && !matchingProd.isBundle) {
+              productRestorations.set(matchingProd.id, (productRestorations.get(matchingProd.id) || 0) + restoreQty);
               inventoryLogs.push({
-                productId: matchingVar.productId,
+                productId: matchingProd.id,
                 type: 'IN',
                 quantity: restoreQty,
                 giver: 'Order Cancellation',
                 receiver: null,
-                notes: `Cancelled bundle [${p.name}] flavor: ${matchingVar.name} (TRX-${trx.id})`,
+                notes: `Cancelled order bundle item: TRX-${trx.id} (${matchingProd.name})`,
               });
             } else {
-              const matchingProd = productByName.get(cleanName);
-              if (matchingProd) {
-                productRestorations.set(matchingProd.id, (productRestorations.get(matchingProd.id) || 0) + restoreQty);
+              const matchingVar = variantByName.get(cleanName);
+              if (matchingVar) {
+                variantRestorations.set(matchingVar.id, (variantRestorations.get(matchingVar.id) || 0) + restoreQty);
+                affectedVariantProductIds.add(matchingVar.productId);
                 inventoryLogs.push({
-                  productId: matchingProd.id,
+                  productId: matchingVar.productId,
                   type: 'IN',
                   quantity: restoreQty,
                   giver: 'Order Cancellation',
                   receiver: null,
-                  notes: `Cancelled order bundle item: TRX-${trx.id} (${matchingProd.name})`,
+                  notes: `Cancelled bundle [${p.name}] flavor: ${matchingVar.name} (TRX-${trx.id})`,
                 });
               }
             }
           }
         }
 
-        inventoryLogs.push({
-          productId: item.productId,
-          type: 'IN',
-          quantity: item.quantity,
-          giver: 'Order Cancellation',
-          receiver: null,
-          notes: `Cancelled order: TRX-${trx.id} (${reason})`,
-        });
+        if (!p.isBundle) {
+          inventoryLogs.push({
+            productId: item.productId,
+            type: 'IN',
+            quantity: item.quantity,
+            giver: 'Order Cancellation',
+            receiver: null,
+            notes: `Cancelled order: TRX-${trx.id} (${reason})`,
+          });
+        }
       }
 
       const restoreBatch: Promise<unknown>[] = [];

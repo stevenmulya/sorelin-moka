@@ -1,6 +1,7 @@
 import { formatWibDate, formatWibTime } from '@/lib/dates';
 import { PAID_STATUSES, STATUS } from '@/lib/constants';
 import { generateTrxCode } from '@/lib/utils';
+import { parseBundleContentsToItems } from '@/lib/bundle-config';
 
 export type ExportableTransaction = {
   id: number;
@@ -42,37 +43,10 @@ export type ShiftMetadataRows = {
 };
 
 function parseFlavors(contents?: string | null): Array<{ flavorName: string; quantity: number }> {
-  if (!contents) return [];
-  const merged = new Map<string, { flavorName: string; quantity: number }>();
-  const clean = contents
-    .replace(/\(\+[^)]+\)/g, '')
-    .replace(/\(include\)/gi, '')
-    .replace(/\(termasuk\)/gi, '')
-    .trim();
-  const parts = clean.split(/[,+]|(?:\s*\+\s*)/).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts) {
-    let qty = 1;
-    let name = '';
-    const prefixMatch = part.match(/^\(?(\d+)\s*x\)?\s*(.+)$/i);
-    if (prefixMatch) {
-      qty = Math.max(1, parseInt(prefixMatch[1], 10));
-      name = prefixMatch[2].replace(/[()]/g, '').trim();
-    } else {
-      const suffixMatch = part.match(/^(.+?)\s*\(?(\d+)\s*x\)?$/i);
-      if (suffixMatch) {
-        qty = Math.max(1, parseInt(suffixMatch[2], 10));
-        name = suffixMatch[1].replace(/[()]/g, '').trim();
-      } else {
-        name = part.replace(/[()]/g, '').trim();
-      }
-    }
-    if (!name) continue;
-    const key = name.toLowerCase();
-    const ex = merged.get(key);
-    if (ex) ex.quantity += qty;
-    else merged.set(key, { flavorName: name, quantity: qty });
-  }
-  return Array.from(merged.values());
+  return parseBundleContentsToItems(contents).map((item) => ({
+    flavorName: item.name,
+    quantity: item.quantity,
+  }));
 }
 
 export async function buildTransactionsExcelBuffer(options: {

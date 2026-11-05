@@ -4,7 +4,7 @@ import { KANBAN_STATUSES, PAID_STATUSES, PAYMENT_METHODS, STATUS, type PaymentMe
 import { UserError, cleanStr, isEmail, parseInteger, requireInteger } from '@/lib/validation';
 import { effectivePrice, formatRupiah } from '@/lib/utils';
 import { summarizeShift } from '@/lib/services/shifts';
-import { parseBundleConfig, getSlotCandidateProducts } from '@/lib/bundle-config';
+import { parseBundleConfig, getSlotCandidateProducts, parseBundleContentsToItems } from '@/lib/bundle-config';
 
 export type Db = Prisma.TransactionClient;
 
@@ -28,40 +28,10 @@ const MAX_QTY = 999;
  * Parse bundle flavor details from bundleContents string (e.g. "2x Garlic Butter, 1x Truffle Ham & Cheese (+Rp 3.000)").
  */
 export function parseBundleFlavors(contents?: string | null): Array<{ flavorName: string; quantity: number }> {
-  if (!contents) return [];
-  const merged = new Map<string, { flavorName: string; quantity: number }>();
-  const clean = contents
-    .replace(/\(\+[^)]+\)/g, '')
-    .replace(/\(include\)/gi, '')
-    .replace(/\(termasuk\)/gi, '')
-    .trim();
-  const parts = clean.split(/[,+]|(?:\s*\+\s*)/).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts) {
-    let qty = 1;
-    let name = '';
-    const prefixMatch = part.match(/^\(?(\d+)\s*x\)?\s*(.+)$/i);
-    if (prefixMatch) {
-      qty = Math.max(1, parseInt(prefixMatch[1], 10));
-      name = prefixMatch[2].replace(/[()]/g, '').trim();
-    } else {
-      const suffixMatch = part.match(/^(.+?)\s*\(?(\d+)\s*x\)?$/i);
-      if (suffixMatch) {
-        qty = Math.max(1, parseInt(suffixMatch[2], 10));
-        name = suffixMatch[1].replace(/[()]/g, '').trim();
-      } else {
-        name = part.replace(/[()]/g, '').trim();
-      }
-    }
-    if (!name) continue;
-    const key = name.toLowerCase();
-    const existing = merged.get(key);
-    if (existing) {
-      existing.quantity += qty;
-    } else {
-      merged.set(key, { flavorName: name, quantity: qty });
-    }
-  }
-  return Array.from(merged.values());
+  return parseBundleContentsToItems(contents).map((item) => ({
+    flavorName: item.name,
+    quantity: item.quantity,
+  }));
 }
 
 /**
@@ -279,7 +249,9 @@ export async function buildOrder(
         }
       }
 
-      if (typeof bundleConfig.discountAmount === 'number') {
+      if (bundleConfig.pricingMode === 'FIXED') {
+        linePrice = bundleConfig.fixedPrice && bundleConfig.fixedPrice > 0 ? bundleConfig.fixedPrice : basePrice;
+      } else if (typeof bundleConfig.discountAmount === 'number') {
         linePrice = Math.max(0, rawNormalTotalPerBox - bundleConfig.discountAmount);
       } else {
         linePrice = basePrice + upchargePerBox;

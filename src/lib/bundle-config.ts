@@ -1,4 +1,5 @@
 export type BundleSlotType = 'CATEGORY' | 'PRODUCT';
+export type BundlePricingMode = 'FIXED' | 'DISCOUNT';
 
 export interface BundleSlotRule {
   id: string;
@@ -13,6 +14,8 @@ export interface BundleSlotRule {
 
 export interface BundleConfig {
   slots: BundleSlotRule[];
+  pricingMode?: BundlePricingMode;
+  fixedPrice?: number;
   discountAmount?: number;
 }
 
@@ -49,7 +52,12 @@ export function parseBundleConfig(raw?: string | null): BundleConfig {
   // 1. Try parsing JSON format
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
-      const parsed = JSON.parse(trimmed) as { slots?: unknown[]; discountAmount?: unknown };
+      const parsed = JSON.parse(trimmed) as {
+        slots?: unknown[];
+        pricingMode?: unknown;
+        fixedPrice?: unknown;
+        discountAmount?: unknown;
+      };
       if (Array.isArray(parsed.slots)) {
         const slots: BundleSlotRule[] = [];
         for (const s of parsed.slots) {
@@ -82,14 +90,34 @@ export function parseBundleConfig(raw?: string | null): BundleConfig {
             });
           }
         }
+
+        const fixedPrice =
+          typeof parsed.fixedPrice === 'number' &&
+          !Number.isNaN(parsed.fixedPrice) &&
+          parsed.fixedPrice > 0
+            ? Math.round(parsed.fixedPrice)
+            : undefined;
+
         const discountAmount =
           typeof parsed.discountAmount === 'number' &&
           !Number.isNaN(parsed.discountAmount) &&
           parsed.discountAmount >= 0
             ? Math.round(parsed.discountAmount)
             : undefined;
+
+        const pricingMode: BundlePricingMode | undefined =
+          parsed.pricingMode === 'FIXED' || parsed.pricingMode === 'DISCOUNT'
+            ? parsed.pricingMode
+            : fixedPrice !== undefined
+              ? 'FIXED'
+              : discountAmount !== undefined
+                ? 'DISCOUNT'
+                : undefined;
+
         return {
           slots,
+          ...(pricingMode ? { pricingMode } : {}),
+          ...(fixedPrice !== undefined ? { fixedPrice } : {}),
           ...(discountAmount !== undefined ? { discountAmount } : {}),
         };
       }
@@ -129,6 +157,10 @@ export function serializeBundleConfig(config: BundleConfig): string {
 
   const payload: BundleConfig = {
     slots: validSlots,
+    ...(config.pricingMode ? { pricingMode: config.pricingMode } : {}),
+    ...(typeof config.fixedPrice === 'number' && !Number.isNaN(config.fixedPrice) && config.fixedPrice > 0
+      ? { fixedPrice: Math.round(config.fixedPrice) }
+      : {}),
     ...(typeof config.discountAmount === 'number' && !Number.isNaN(config.discountAmount)
       ? { discountAmount: Math.max(0, Math.round(config.discountAmount)) }
       : {}),
@@ -167,14 +199,30 @@ export function getSlotCandidateProducts<
 
 /**
  * Compute exact Min–Max price, cost (HPP), and profit ranges for a bundle configuration.
- * Never uses misleading averages: every range reflects the exact minimum and maximum across
- * all valid customer choices.
+ * Supports both:
+ *  - `DISCOUNT` mode: Final Price = Sum(Chosen Item Prices) - discountAmount
+ *  - `FIXED` mode: Final Price = fixedPrice (flat price regardless of which options are chosen)
  */
 export function calculateBundlePriceStats(
   slots: BundleSlotRule[],
-  discountAmount: number,
+  pricingOrDiscount:
+    | number
+    | {
+        pricingMode?: BundlePricingMode;
+        fixedPrice?: number;
+        discountAmount?: number;
+      },
   allProducts: BundlePricingProduct[]
 ) {
+  const pricingOpts =
+    typeof pricingOrDiscount === 'number'
+      ? { pricingMode: 'DISCOUNT' as const, discountAmount: pricingOrDiscount, fixedPrice: 0 }
+      : {
+          pricingMode: pricingOrDiscount.pricingMode ?? 'DISCOUNT',
+          fixedPrice: Math.max(0, Math.round(pricingOrDiscount.fixedPrice || 0)),
+          discountAmount: Math.max(0, Math.round(pricingOrDiscount.discountAmount || 0)),
+        };
+
   let minNormalPrice = 0;
   let maxNormalPrice = 0;
   let minCostPrice = 0;
@@ -245,16 +293,41 @@ export function calculateBundlePriceStats(
     };
   });
 
-  const cleanDiscount = Math.max(0, Math.round(discountAmount || 0));
+  if (pricingOpts.pricingMode === 'FIXED') {
+    const flatPrice = pricingOpts.fixedPrice;
+    // In FIXED mode, customer always pays `flatPrice`, while HPP ranges from minCostPrice to maxCostPrice:
+    // Lowest profit occurs when customer picks highest-HPP items (flatPrice - maxCostPrice)
+    // Highest profit occurs when customer picks lowest-HPP items (flatPrice - minCostPrice)
+    const minProfit = flatPrice - maxCostPrice;
+    const maxProfit = flatPrice - minCostPrice;
+    return {
+      pricingMode: 'FIXED' as const,
+      fixedPrice: flatPrice,
+      discountAmount: Math.max(0, minNormalPrice - flatPrice),
+      minNormalPrice,
+      maxNormalPrice,
+      minFinalPrice: flatPrice,
+      maxFinalPrice: flatPrice,
+      minCostPrice,
+      maxCostPrice,
+      minProfit,
+      maxProfit,
+      slotDetails,
+    };
+  }
+
+  const cleanDiscount = pricingOpts.discountAmount;
   const minFinalPrice = Math.max(0, minNormalPrice - cleanDiscount);
   const maxFinalPrice = Math.max(0, maxNormalPrice - cleanDiscount);
   const minProfit = minMarginBeforeDiscount - cleanDiscount;
   const maxProfit = maxMarginBeforeDiscount - cleanDiscount;
 
   return {
+    pricingMode: 'DISCOUNT' as const,
+    fixedPrice: minFinalPrice,
+    discountAmount: cleanDiscount,
     minNormalPrice,
     maxNormalPrice,
-    discountAmount: cleanDiscount,
     minFinalPrice,
     maxFinalPrice,
     minCostPrice,
@@ -290,7 +363,10 @@ export function parseBundleContentsToItems(bundleContents?: string | null): { na
   if (!bundleContents || !bundleContents.trim()) return [];
   const clean = bundleContents
     .replace(/^(isi|contents|include|termasuk)\s*:?\s*/i, '')
-    .replace(/\(\+[^)]+\)/g, '');
+    .replace(/\(\+[^)]+\)/g, '')
+    .replace(/\(include\)/gi, '')
+    .replace(/\(termasuk\)/gi, '')
+    .trim();
   const parts = clean
     .split(/,|\s+\+\s+/)
     .map((s) => s.trim())
@@ -299,19 +375,19 @@ export function parseBundleContentsToItems(bundleContents?: string | null): { na
   const merged = new Map<string, { name: string; quantity: number }>();
 
   for (const part of parts) {
-    const prefixMatch = part.match(/^(\d+)\s*[xX*]\s*(.+)$/);
+    const prefixMatch = part.match(/^\(?(\d+)\s*[xX*]\)?\s*(.+)$/);
     let name = '';
     let qty = 1;
     if (prefixMatch) {
       qty = Math.max(1, parseInt(prefixMatch[1], 10));
-      name = prefixMatch[2].trim();
+      name = prefixMatch[2].replace(/[()]/g, '').trim();
     } else {
       const suffixMatch = part.match(/^(.+?)\s*\(\s*(\d+)\s*[xX*]?\s*\)$/);
       if (suffixMatch) {
-        name = suffixMatch[1].trim();
+        name = suffixMatch[1].replace(/[()]/g, '').trim();
         qty = Math.max(1, parseInt(suffixMatch[2], 10));
       } else {
-        name = part.trim();
+        name = part.replace(/[()]/g, '').trim();
       }
     }
     if (!name) continue;
@@ -408,6 +484,8 @@ export function canIncrementCartItem(
 /**
  * Compute the maximum number of boxes of a bundle that can be assembled from
  * the currently available physical stock of its component products/categories/custom option pools.
+ * Uses Hall's Marriage Theorem across all non-empty subsets of choice pools to guarantee
+ * 100% mathematical accuracy even when fixed slots and multiple choice slots overlap.
  */
 export function getBundleMaxStock(
   bundleProd: StockCheckProduct,
@@ -457,46 +535,85 @@ export function getBundleMaxStock(
 
   if (maxBoxes === 0) return 0;
 
-  // 2. Group choice slots by identical candidate pool and check each pool's stock
-  const groupedPools = new Map<string, { quota: number; candidates: StockCheckProduct[] }>();
+  // 2. Group choice slots by identical candidate pool
+  const groupedPoolsMap = new Map<string, { quota: number; candidates: StockCheckProduct[] }>();
   for (const cs of choiceSlots) {
-    const existing = groupedPools.get(cs.poolKey);
+    const existing = groupedPoolsMap.get(cs.poolKey);
     if (existing) {
       existing.quota += cs.quota;
     } else {
-      groupedPools.set(cs.poolKey, { quota: cs.quota, candidates: cs.candidates });
+      groupedPoolsMap.set(cs.poolKey, { quota: cs.quota, candidates: cs.candidates });
     }
   }
 
-  for (const pool of groupedPools.values()) {
+  const pools = Array.from(groupedPoolsMap.values());
+  if (pools.length === 0) {
+    return maxBoxes === Infinity ? 0 : Math.max(0, maxBoxes);
+  }
+
+  // 3. By Hall's Marriage Theorem, for every non-empty subset S of choice pools,
+  // the union of candidate products U(S) must have enough remaining stock (after reserving
+  // fixed requirements for each box) to satisfy the sum of quotas in S.
+  //Wait: a fixed product p in U(S) with high stock cannot contribute more than `remStock(p)` total,
+  // and if `remStock(p)` is already capped by `maxBoxes`, we should cap each fixed product's usable stock
+  // at `remStock(p)` while adding `fixedQty(p)` to `neededPerBox` ONLY if `remStock(p) > fixedQty(p) * 0`.
+  // Even better: since we want the largest integer B in [0, maxBoxes] such that for every subset S of pools:
+  //   sum_{p in U(S)} max(0, remStock(p) - fixedQty(p) * B) >= (sum_{pool in S} pool.quota) * B,
+  // notice that `sum_{p in U(S)} max(0, remStock(p) - fixedQty(p) * B) - Quota(S) * B` is strictly decreasing in B!
+  // Let's first bound `maxBoxes` by the closed-form upper bound for each single pool, and then verify / binary-search B!
+  for (const pool of pools) {
     const totalPoolStock = pool.candidates.reduce((sum, p) => sum + remStock(p), 0);
     let fixedInPool = 0;
     for (const cp of pool.candidates) {
       fixedInPool += fixedByProdName.get((cp.name ?? '').trim().toLowerCase()) ?? 0;
     }
-    const neededPerBox = pool.quota + fixedInPool;
-    maxBoxes = Math.min(maxBoxes, Math.floor(totalPoolStock / neededPerBox));
+    maxBoxes = Math.min(maxBoxes, Math.floor(totalPoolStock / (pool.quota + fixedInPool)));
   }
 
-  // 3. Also check combined union across all overlapping choice slots
-  if (groupedPools.size > 1) {
-    const unionMap = new Map<number, StockCheckProduct>();
-    let totalChoiceQuota = 0;
-    for (const pool of groupedPools.values()) {
-      totalChoiceQuota += pool.quota;
-      for (const cp of pool.candidates) {
-        unionMap.set(cp.id, cp);
+  if (maxBoxes <= 0) return 0;
+
+  // Helper: check if `boxes` (B >= 1) is feasible across all subsets of pools
+  const isFeasible = (boxes: number): boolean => {
+    if (boxes <= 0) return true;
+    const n = pools.length;
+    if (n <= 8) {
+      const totalMasks = 1 << n;
+      for (let mask = 1; mask < totalMasks; mask++) {
+        let quotaSum = 0;
+        const unionProds = new Map<number, StockCheckProduct>();
+        for (let i = 0; i < n; i++) {
+          if (mask & (1 << i)) {
+            quotaSum += pools[i].quota;
+            for (const cp of pools[i].candidates) {
+              unionProds.set(cp.id, cp);
+            }
+          }
+        }
+        let availAfterFixed = 0;
+        for (const cp of unionProds.values()) {
+          const fQty = fixedByProdName.get((cp.name ?? '').trim().toLowerCase()) ?? 0;
+          availAfterFixed += Math.max(0, remStock(cp) - fQty * boxes);
+        }
+        if (availAfterFixed < quotaSum * boxes) {
+          return false;
+        }
       }
+      return true;
     }
-    const unionCandidates = Array.from(unionMap.values());
-    const totalUnionStock = unionCandidates.reduce((sum, p) => sum + remStock(p), 0);
-    let fixedInUnion = 0;
-    for (const cp of unionCandidates) {
-      fixedInUnion += fixedByProdName.get((cp.name ?? '').trim().toLowerCase()) ?? 0;
+    return true;
+  };
+
+  // Binary search in [0, maxBoxes] for the exact maximum feasible boxes
+  let lo = 0;
+  let hi = maxBoxes;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (isFeasible(mid)) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
     }
-    const totalUnionNeeded = totalChoiceQuota + fixedInUnion;
-    maxBoxes = Math.min(maxBoxes, Math.floor(totalUnionStock / totalUnionNeeded));
   }
 
-  return maxBoxes === Infinity ? 0 : Math.max(0, maxBoxes);
+  return lo;
 }

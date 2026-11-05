@@ -101,11 +101,16 @@ export default async function BundlesPage({
               {bundles.map((bundle) => {
                 const config = parseBundleConfig(bundle.availableVariants);
                 const maxStock = getBundleMaxStock(bundle, singleProducts);
-                const hasDiscConfig = typeof config.discountAmount === 'number';
+                const isFixedMode = config.pricingMode === 'FIXED';
+                const hasDiscConfig = typeof config.discountAmount === 'number' || isFixedMode;
                 const stats = config.slots.length > 0
                   ? calculateBundlePriceStats(
                       config.slots,
-                      hasDiscConfig ? (config.discountAmount ?? 0) : 0,
+                      {
+                        pricingMode: config.pricingMode ?? (typeof config.discountAmount === 'number' ? 'DISCOUNT' : 'FIXED'),
+                        fixedPrice: config.fixedPrice ?? (bundle.discountPrice || bundle.price),
+                        discountAmount: config.discountAmount ?? 0,
+                      },
                       singleProducts
                     )
                   : null;
@@ -194,10 +199,16 @@ export default async function BundlesPage({
                               ? formatRupiah(stats.minFinalPrice)
                               : `${formatRupiah(stats.minFinalPrice)} – ${formatRupiah(stats.maxFinalPrice)}`}
                           </div>
-                          {stats.discountAmount > 0 && (
-                            <div className="text-[11px] text-amber-800 font-medium mt-0.5">
-                              Save {formatRupiah(stats.discountAmount)}
+                          {isFixedMode ? (
+                            <div className="text-[11px] text-emerald-800 font-medium mt-0.5">
+                              Fixed Price (+Rp 0 all options)
                             </div>
+                          ) : (
+                            stats.discountAmount > 0 && (
+                              <div className="text-[11px] text-amber-800 font-medium mt-0.5">
+                                Save {formatRupiah(stats.discountAmount)}
+                              </div>
+                            )
                           )}
                           <div className="text-xs text-[#8E6D53] mt-0.5">
                             HPP:{' '}

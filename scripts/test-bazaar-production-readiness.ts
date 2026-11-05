@@ -236,6 +236,69 @@ async function runBazaarProductionReadinessAudit() {
       `Bundle ID #${bundle3.id}: ${bundle3.name}`,
     );
 
+    // Create Bundle 4 (User's Exact Request: "Bundle 3 Item Sorelin" @ Fixed Price Rp 60.000 flat)
+    // Slot 1: Fixed 1x Salt Bread Original
+    // Slot 2: Choice 1x Any Saltbread
+    // Slot 3: Choice 1x Any Beverage
+    const bundle4Slots = [
+      { id: 'slot-sorelin-orig', type: 'PRODUCT' as const, productId: sbOrigInit.id, productName: sbOrigInit.name, quantity: 1 },
+      { id: 'slot-sorelin-sb', type: 'CATEGORY' as const, categoryName: 'Saltbread', quota: 1 },
+      { id: 'slot-sorelin-bev', type: 'CATEGORY' as const, categoryName: 'Beverage', quota: 1 },
+    ];
+    const bundle4Stats = calculateBundlePriceStats(
+      bundle4Slots,
+      { pricingMode: 'FIXED', fixedPrice: 60_000 },
+      seededProducts,
+    );
+    assert(
+      bundle4Stats.minFinalPrice === 60_000 &&
+        bundle4Stats.maxFinalPrice === 60_000 &&
+        bundle4Stats.minCostPrice === 33_000 &&
+        bundle4Stats.maxCostPrice === 40_000 &&
+        bundle4Stats.minProfit === 20_000 &&
+        bundle4Stats.maxProfit === 27_000,
+      'Fixed-Price Bundle stats compute flat Rp 60.000 price, real HPP range (Rp 33k–40k), and real Profit range (Rp 20k–27k)',
+      `Price: Rp ${bundle4Stats.minFinalPrice} flat | HPP: Rp ${bundle4Stats.minCostPrice}–${bundle4Stats.maxCostPrice} | Profit: Rp ${bundle4Stats.minProfit}–${bundle4Stats.maxProfit}`,
+    );
+
+    const bundle4Config = serializeBundleConfig({
+      slots: bundle4Slots,
+      pricingMode: 'FIXED',
+      fixedPrice: 60_000,
+    });
+    const bundle4Form = new FormData();
+    bundle4Form.set('name', 'Bundle 3 Item Sorelin');
+    bundle4Form.set('type', '');
+    bundle4Form.set('price', '60000');
+    bundle4Form.set('costPrice', String(bundle4Stats.minCostPrice));
+    bundle4Form.set('stock', '0');
+    bundle4Form.set('isBundle', 'true');
+    bundle4Form.set('bundleQuota', '3');
+    bundle4Form.set('availableVariants', bundle4Config);
+
+    const bundle4 = await createProductService(parseProductForm(bundle4Form), []);
+    assert(
+      bundle4.isBundle && bundle4.price === 60_000 && bundle4.costPrice === 33_000,
+      'Fixed-Price Bundle ("Bundle 3 Item Sorelin" @ Rp 60.000 flat) created accurately',
+      `Bundle ID #${bundle4.id}: ${bundle4.name}`,
+    );
+
+    // Verify getBundleMaxStock overlapping slot feasibility (Fixed 1x Original + Choice 1x Saltbread):
+    // If Original = 1, all other Saltbreads = 0, Beverages = 10 -> Cannot form even 1 box because Slot 1 takes the only Original!
+    const mockCatalogOverlapZero = seededProducts.map((p) => ({
+      ...p,
+      stock: p.name === 'Salt Bread Original' ? 1 : p.name === 'Thai Milk Tea' ? 10 : 0,
+    }));
+    const mockCatalogOverlapOne = seededProducts.map((p) => ({
+      ...p,
+      stock: p.name === 'Salt Bread Original' ? 2 : p.name === 'Thai Milk Tea' ? 10 : 0,
+    }));
+    assert(
+      getBundleMaxStock(bundle4, mockCatalogOverlapZero) === 0 &&
+        getBundleMaxStock(bundle4, mockCatalogOverlapOne) === 1,
+      'getBundleMaxStock prevents overlapping fixed + choice slot double-counting (requires 2 total Saltbreads when Original is fixed in Slot 1)',
+    );
+
     // Verify Inventory query excludes bundles
     // Restock the 8 single products to 50 pcs each to simulate morning bazaar baking batch
     await prisma.product.updateMany({
@@ -579,6 +642,68 @@ async function runBazaarProductionReadinessAudit() {
       transactionId: order3.id,
       reason: 'Test verification complete',
     });
+
+    // Order 4 on Bundle 4 ("Bundle 3 Item Sorelin" @ Fixed Price Rp 60.000 flat):
+    // - Box 1: Fixed 1x Original + Choice 1x Smoked Ham and Cheese + Choice 1x Thai Milk Tea
+    //   -> Selling Price MUST be Rp 60.000 flat (NO +Rp 6.000 upcharge!), COGS = 13k + 20k + 7k = Rp 40.000
+    // - Box 2: Fixed 1x Original + Choice 1x Original (merged as "2x Salt Bread Original, 1x Thai Tea Honey Lemon")
+    //   -> Selling Price MUST be Rp 60.000 flat, COGS = 13k + 13k + 7k = Rp 33.000
+    const order4 = await createOrder({
+      customer: 'Kevin Wijaya',
+      items: [
+        {
+          productId: bundle4.id,
+          quantity: 1,
+          isBundle: true,
+          bundleContents: '1x Salt Bread Original, 1x Salt Bread Smoked Ham and Cheese, 1x Thai Milk Tea',
+        },
+        {
+          productId: bundle4.id,
+          quantity: 1,
+          isBundle: true,
+          bundleContents: '2x Salt Bread Original, 1x Thai Tea Honey Lemon',
+        },
+      ],
+    });
+    const order4WithItems = await prisma.transaction.findUnique({
+      where: { id: order4.id },
+      include: { items: true },
+    });
+    const box4Ham = order4WithItems!.items[0];
+    const box4DoubleOrig = order4WithItems!.items[1];
+    assert(
+      order4.amount === 120_000 &&
+        box4Ham.price === 60_000 &&
+        box4Ham.costPrice === 40_000 &&
+        box4DoubleOrig.price === 60_000 &&
+        box4DoubleOrig.costPrice === 33_000,
+      'Fixed-Price Bundle ("Bundle 3 Item Sorelin") keeps selling price strictly Rp 60.000 flat regardless of choice while recording exact component HPP (Rp 40.000 vs Rp 33.000)',
+      `Box 1 (with Smoked Ham): Sell ${formatRupiah(box4Ham.price)}, HPP ${formatRupiah(box4Ham.costPrice)} | Box 2 (2x Original): Sell ${formatRupiah(box4DoubleOrig.price)}, HPP ${formatRupiah(box4DoubleOrig.costPrice)}`,
+    );
+
+    // Approve Order 4 to verify physical stock deduction when customer picks Original again in Slot 2 (3x Original total deducted), then cancel to verify full restock
+    await approvePaymentService({
+      transactionId: order4.id,
+      cashierName: 'Kasir Bazaar iPad',
+      paymentMethod: 'QRIS',
+      paidAmount: order4.amount,
+    });
+    const sbOrigDuringOrder4 = (await prisma.product.findUnique({ where: { id: sbOrig.id } }))!.stock;
+    const sbHamDuringOrder4 = (await prisma.product.findUnique({ where: { id: sbHam.id } }))!.stock;
+    assert(
+      sbOrigDuringOrder4 === 44 && sbHamDuringOrder4 === 47,
+      'Fixed-Price Bundle payment approval accurately deducts 3x Salt Bread Original (47 -> 44) and 1x Smoked Ham (48 -> 47)',
+    );
+    await cancelOrderService({
+      transactionId: order4.id,
+      reason: 'Verify full restock of Fixed-Price Bundle components',
+    });
+    const sbOrigAfterCancelOrder4 = (await prisma.product.findUnique({ where: { id: sbOrig.id } }))!.stock;
+    const sbHamAfterCancelOrder4 = (await prisma.product.findUnique({ where: { id: sbHam.id } }))!.stock;
+    assert(
+      sbOrigAfterCancelOrder4 === 47 && sbHamAfterCancelOrder4 === 48,
+      'Cancelling paid Fixed-Price Bundle order accurately restores all 6 physical component items (Original: 44 -> 47, Smoked Ham: 47 -> 48)',
+    );
 
     // -------------------------------------------------------------
     // 6. CONCURRENT KIOSK ORDER RACE CONDITION / ATOMIC STOCK GUARD

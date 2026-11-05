@@ -17,11 +17,13 @@ import {
   Lock,
   CheckCircle2,
   CheckSquare,
+  Tag,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatRupiah } from '@/lib/utils';
 import {
   type BundleSlotRule,
+  type BundlePricingMode,
   parseBundleConfig,
   serializeBundleConfig,
   calculateBundlePriceStats,
@@ -101,36 +103,63 @@ export default function BundleForm({
 
   // Parse initial bundle config when editing
   const parsedInitialConfig = useMemo(() => {
-    if (!initialData) return { slots: [] as BundleSlotRule[], discountAmount: undefined };
+    if (!initialData) {
+      return {
+        slots: [] as BundleSlotRule[],
+        pricingMode: 'FIXED' as BundlePricingMode,
+        fixedPrice: undefined,
+        discountAmount: undefined,
+      };
+    }
     return parseBundleConfig(initialData.availableVariants);
   }, [initialData]);
 
   const [slots, setSlots] = useState<BundleSlotRule[]>(parsedInitialConfig.slots);
 
-  // Initial nominal discount amount (Rp)
-  const initialDiscountAmount = useMemo(() => {
-    if (typeof parsedInitialConfig.discountAmount === 'number') {
-      return String(parsedInitialConfig.discountAmount);
+  // Pricing Mode: 'FIXED' (Flat bundle price regardless of item chosen) or 'DISCOUNT' (Nominal Rp off chosen items)
+  const [pricingMode, setPricingMode] = useState<BundlePricingMode>(() => {
+    if (parsedInitialConfig.pricingMode) return parsedInitialConfig.pricingMode;
+    if (typeof parsedInitialConfig.discountAmount === 'number') return 'DISCOUNT';
+    return 'FIXED';
+  });
+
+  // Initial Fixed Selling Price (Rp)
+  const [fixedPriceRaw, setFixedPriceRaw] = useState<string>(() => {
+    if (typeof parsedInitialConfig.fixedPrice === 'number') {
+      return String(parsedInitialConfig.fixedPrice);
     }
-    if (initialData && parsedInitialConfig.slots.length > 0 && initialData.price) {
-      const baseStats = calculateBundlePriceStats(parsedInitialConfig.slots, 0, availableProducts);
+    if (initialData?.price) {
       const savedEffective =
         initialData.discountPrice && initialData.discountPrice > 0 && initialData.discountPrice < initialData.price
           ? initialData.discountPrice
           : initialData.price;
-      const derivedDisc = Math.max(0, baseStats.minNormalPrice - savedEffective);
-      return String(derivedDisc);
+      return String(savedEffective);
+    }
+    return '';
+  });
+  const fixedPrice = Math.max(0, Math.round(Number(fixedPriceRaw) || 0));
+
+  // Initial Nominal Discount Amount (Rp)
+  const [discountAmountRaw, setDiscountAmountRaw] = useState<string>(() => {
+    if (typeof parsedInitialConfig.discountAmount === 'number') {
+      return String(parsedInitialConfig.discountAmount);
     }
     return '0';
-  }, [parsedInitialConfig, initialData, availableProducts]);
-
-  const [discountAmountRaw, setDiscountAmountRaw] = useState<string>(initialDiscountAmount);
+  });
   const discountAmount = Math.max(0, Math.round(Number(discountAmountRaw) || 0));
 
   // Exact Min-Max Price, Cost (HPP), and Profit Calculation
   const stats = useMemo(() => {
-    return calculateBundlePriceStats(slots, discountAmount, availableProducts);
-  }, [slots, discountAmount, availableProducts]);
+    return calculateBundlePriceStats(
+      slots,
+      {
+        pricingMode,
+        fixedPrice,
+        discountAmount,
+      },
+      availableProducts
+    );
+  }, [slots, pricingMode, fixedPrice, discountAmount, availableProducts]);
 
   // Add Slot Form State
   const [newSlotMode, setNewSlotMode] = useState<'PRODUCT' | 'CUSTOM_OPTIONS' | 'CATEGORY'>('PRODUCT');
@@ -300,8 +329,12 @@ export default function BundleForm({
   }, [slots]);
 
   const serializedConfig = useMemo(() => {
-    return serializeBundleConfig({ slots, discountAmount });
-  }, [slots, discountAmount]);
+    return serializeBundleConfig({
+      slots,
+      pricingMode,
+      ...(pricingMode === 'FIXED' ? { fixedPrice } : { discountAmount }),
+    });
+  }, [slots, pricingMode, fixedPrice, discountAmount]);
 
   const handleDeleteImage = async (imageId: number) => {
     if (!initialData?.id) return;
@@ -329,7 +362,7 @@ export default function BundleForm({
               {isEditing ? 'Edit Bundle' : 'Create New Bundle'}
             </h1>
             <p className="text-xs text-[#8E6D53] mt-0.5 font-normal">
-              Configure fixed items, customer option slots, and nominal bundle discount. Selling price &amp; HPP follow customer choices automatically.
+              Configure bundle items and choose between Fixed Package Price (flat price) or Nominal Discount off items.
             </p>
           </div>
         </div>
@@ -830,23 +863,68 @@ export default function BundleForm({
               </div>
             </div>
 
-            {/* Card 3: Discount-Based Bundle Pricing & Exact Margin Preview */}
+            {/* Card 3: Bundle Pricing Mode (Fixed Price vs Discount Off Items) */}
             <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-[#E5D5BC]/60 pb-3">
                 <div className="flex items-center gap-2">
                   <Coins className="h-4 w-4 text-[#C88A32]" strokeWidth={1.5} />
                   <div>
-                    <h2 className="font-semibold text-sm text-[#3F2311]">Bundle Discount &amp; Dynamic Pricing</h2>
+                    <h2 className="font-semibold text-sm text-[#3F2311]">Bundle Pricing &amp; Profit Calculation</h2>
                     <p className="text-[11px] text-[#8E6D53] font-light">
-                      Item selling prices &amp; HPP are already set per product. Simply enter the nominal bundle discount (Rp).
+                      Choose between a Fixed Package Price (flat price regardless of choice) or Nominal Discount off items.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" strokeWidth={1.5} />
-                  <span className="text-[11px] font-medium">Dynamic Per Item</span>
+                  <span className="text-[11px] font-medium">
+                    {pricingMode === 'FIXED' ? 'Flat Package Price' : 'Dynamic Per Item'}
+                  </span>
                 </div>
+              </div>
+
+              {/* Pricing Mode Toggle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPricingMode('FIXED')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    pricingMode === 'FIXED'
+                      ? 'bg-[#FFFDF8] border-[#6B4227] ring-2 ring-[#6B4227]/20 shadow-xs'
+                      : 'bg-[#FAF0DA]/40 border-[#E5D5BC] text-[#8E6D53]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Coins className="h-4 w-4 text-[#6B4227]" strokeWidth={1.5} />
+                    <span className="text-xs font-semibold text-[#3F2311]">
+                      Fixed Package Price (Harga Fix)
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-[#8E6D53] block font-light leading-relaxed">
+                    Flat bundle price (e.g. Rp 60.000) with +Rp 0 upcharge regardless of which flavors customer selects.
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPricingMode('DISCOUNT')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    pricingMode === 'DISCOUNT'
+                      ? 'bg-[#FFFDF8] border-[#6B4227] ring-2 ring-[#6B4227]/20 shadow-xs'
+                      : 'bg-[#FAF0DA]/40 border-[#E5D5BC] text-[#8E6D53]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Tag className="h-4 w-4 text-[#C88A32]" strokeWidth={1.5} />
+                    <span className="text-xs font-semibold text-[#3F2311]">
+                      Discount Off Items (Potongan Harga)
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-[#8E6D53] block font-light leading-relaxed">
+                    Customer pays the total normal price of their chosen items minus a nominal bundle discount (Rp).
+                  </span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -855,7 +933,7 @@ export default function BundleForm({
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-[#8E6D53] flex items-center gap-1">
                       <Lock className="h-3 w-3 text-[#8E6D53]" strokeWidth={1.5} />
-                      <span>Normal Total Price</span>
+                      <span>Normal Item Total</span>
                     </label>
                     <span className="text-[10px] font-medium text-[#6B4227] bg-[#FAF0DA] px-1.5 py-0.2 rounded border border-[#E5D5BC]">
                       Auto
@@ -865,28 +943,49 @@ export default function BundleForm({
                     <span>{formatRange(stats.minNormalPrice, stats.maxNormalPrice)}</span>
                   </div>
                   <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
-                    Sum of normal selling prices of chosen items
+                    Sum of normal prices if bought separately
                   </p>
                 </div>
 
-                {/* 2. Bundle Discount Amount (Nominal Rp) */}
-                <div>
-                  <label className="block text-xs font-medium text-[#8E6D53] mb-1.5">
-                    Bundle Discount (Rp) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={discountAmountRaw}
-                    onChange={(e) => setDiscountAmountRaw(e.target.value)}
-                    min={0}
-                    step={500}
-                    placeholder="Enter discount amount"
-                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
-                  />
-                  <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
-                    Nominal discount subtracted from selected items
-                  </p>
-                </div>
+                {/* 2. Fixed Selling Price OR Nominal Discount Input */}
+                {pricingMode === 'FIXED' ? (
+                  <div>
+                    <label className="block text-xs font-medium text-[#8E6D53] mb-1.5">
+                      Fixed Bundle Price (Rp) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={fixedPriceRaw}
+                      onChange={(e) => setFixedPriceRaw(e.target.value)}
+                      min={1}
+                      step={500}
+                      required
+                      placeholder="Enter fixed bundle price"
+                      className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
+                    />
+                    <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
+                      Flat price for all valid customer choices
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-[#8E6D53] mb-1.5">
+                      Bundle Discount (Rp) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={discountAmountRaw}
+                      onChange={(e) => setDiscountAmountRaw(e.target.value)}
+                      min={0}
+                      step={500}
+                      placeholder="Enter discount amount"
+                      className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
+                    />
+                    <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
+                      Nominal discount subtracted from selected items
+                    </p>
+                  </div>
+                )}
 
                 {/* 3. Actual HPP Range (Read-Only) */}
                 <div>
@@ -912,35 +1011,28 @@ export default function BundleForm({
               <div className="p-4 bg-[#FAF0DA]/50 border border-[#E5D5BC] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-xs text-[#8E6D53] block font-medium">
-                    Final Bundle Selling Price (After Discount):
+                    {pricingMode === 'FIXED'
+                      ? 'Fixed Customer Bundle Price (All Options +Rp 0):'
+                      : 'Final Bundle Selling Price (After Discount):'}
                   </span>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-base font-bold text-[#6B4227]">
                       {formatRange(stats.minFinalPrice, stats.maxFinalPrice)}
                     </span>
-                    {discountAmount > 0 && (
+                    {pricingMode === 'DISCOUNT' && discountAmount > 0 && (
                       <span className="text-xs text-[#8E6D53] line-through font-normal">
                         {formatRange(stats.minNormalPrice, stats.maxNormalPrice)}
                       </span>
                     )}
                   </div>
                   <span className="text-[10px] text-[#8E6D53] block mt-0.5">
-                    Customer pays: Total Price of Selected Items − {formatRupiah(discountAmount)}
+                    {pricingMode === 'FIXED'
+                      ? 'Customer pays this exact flat price regardless of which flavors they choose'
+                      : `Customer pays: Total Price of Selected Items − ${formatRupiah(discountAmount)}`}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  {discountAmount > 0 && (
-                    <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-right">
-                      <span className="text-[11px] font-semibold text-amber-800 block">
-                        Save {formatRupiah(discountAmount)}
-                      </span>
-                      <span className="text-[10px] text-amber-700 font-normal">
-                        Bundle Discount
-                      </span>
-                    </div>
-                  )}
-
                   <div
                     className={`px-3.5 py-1.5 rounded-xl border text-right ${
                       stats.minProfit > 0
@@ -953,14 +1045,16 @@ export default function BundleForm({
                         stats.minProfit > 0 ? 'text-emerald-800' : 'text-red-700'
                       }`}
                     >
-                      Net Profit: {formatRange(stats.minProfit, stats.maxProfit)}
+                      Gross Profit: {formatRange(stats.minProfit, stats.maxProfit)}
                     </span>
                     <span
                       className={`text-[10px] font-normal ${
                         stats.minProfit > 0 ? 'text-emerald-700' : 'text-red-600'
                       }`}
                     >
-                      Exact margin across all choices
+                      {pricingMode === 'FIXED'
+                        ? `Fixed (${formatRupiah(fixedPrice)}) − Actual HPP (${formatRange(stats.minCostPrice, stats.maxCostPrice)})`
+                        : 'Exact margin across all choices'}
                     </span>
                   </div>
                 </div>

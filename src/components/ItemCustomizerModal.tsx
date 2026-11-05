@@ -139,6 +139,8 @@ export default function ItemCustomizerModal({
     return raw.replace(/^(include|termasuk)\s*:?\s*/i, '').trim() || 'Air Mineral';
   }, [product]);
 
+  const isFixedPricingBundle = bundleConfig.pricingMode === 'FIXED';
+
   // Map of slot.id -> minimum effective price among candidate products in that specific slot
   const slotMinPrices = useMemo(() => {
     const map = new Map<string, number>();
@@ -153,8 +155,9 @@ export default function ItemCustomizerModal({
   }, [categorySlots, allProducts]);
 
   // Dynamic slot upcharge calculation based on selected items relative to each slot's minimum candidate price
+  // When pricingMode === 'FIXED', upcharge is strictly 0 across all options.
   const totalSlotUpcharge = useMemo(() => {
-    if (!hasConfiguredSlots) return 0;
+    if (!hasConfiguredSlots || isFixedPricingBundle) return 0;
     let sum = 0;
     for (const slot of categorySlots) {
       const minSlotPrice = slotMinPrices.get(slot.id) ?? 0;
@@ -171,7 +174,7 @@ export default function ItemCustomizerModal({
       }
     }
     return sum;
-  }, [hasConfiguredSlots, categorySlots, slotMinPrices, allProducts, slotSelections]);
+  }, [hasConfiguredSlots, isFixedPricingBundle, categorySlots, slotMinPrices, allProducts, slotSelections]);
 
   const totalLegacyUpcharge = useMemo(() => {
     if (hasConfiguredSlots) return 0;
@@ -210,7 +213,7 @@ export default function ItemCustomizerModal({
     : Math.max(0, maxAvailableStock);
 
   // Bundle calculations
-  const bundleBasePrice = effectivePrice(product);
+  const bundleBasePrice = isFixedPricingBundle && bundleConfig.fixedPrice ? bundleConfig.fixedPrice : effectivePrice(product);
   const totalBundleUpcharges = hasConfiguredSlots ? totalSlotUpcharge : totalLegacyUpcharge;
   const liveBundlePrice = bundleBasePrice + totalBundleUpcharges;
 
@@ -317,6 +320,25 @@ export default function ItemCustomizerModal({
       const parts: string[] = [];
 
       if (hasConfiguredSlots) {
+        // Aggregate items cleanly (merging identical product names when neither has an upcharge)
+        const aggregated = new Map<string, { displayName: string; count: number; upcharge: number }>();
+        const addEntry = (itemName: string, qty: number, upcharge: number) => {
+          const key = `${itemName.trim().toLowerCase()}__${upcharge}`;
+          const existing = aggregated.get(key);
+          if (existing) {
+            existing.count += qty;
+          } else {
+            aggregated.set(key, { displayName: itemName.trim(), count: qty, upcharge });
+          }
+        };
+
+        // Collect fixed product slots first
+        for (const fixed of fixedSlots) {
+          if (fixed.productName && fixed.quantity) {
+            addEntry(fixed.productName, fixed.quantity, 0);
+          }
+        }
+
         // Collect items from category/custom option slots
         for (const slot of categorySlots) {
           const minSlotPrice = slotMinPrices.get(slot.id) ?? 0;
@@ -325,19 +347,20 @@ export default function ItemCustomizerModal({
           for (const [name, count] of Object.entries(items)) {
             if (count > 0) {
               const prod = matchingProducts.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
-              const upcharge = prod && minSlotPrice > 0 ? Math.max(0, effectivePrice(prod) - minSlotPrice) : 0;
-              if (upcharge > 0) {
-                parts.push(`${count}x ${name} (+${formatRupiah(upcharge)})`);
-              } else {
-                parts.push(`${count}x ${name}`);
-              }
+              const upcharge =
+                !isFixedPricingBundle && prod && minSlotPrice > 0
+                  ? Math.max(0, effectivePrice(prod) - minSlotPrice)
+                  : 0;
+              addEntry(name, count, upcharge);
             }
           }
         }
-        // Collect fixed product slots
-        for (const fixed of fixedSlots) {
-          if (fixed.productName && fixed.quantity) {
-            parts.push(`${fixed.quantity}x ${fixed.productName}`);
+
+        for (const entry of aggregated.values()) {
+          if (entry.upcharge > 0) {
+            parts.push(`${entry.count}x ${entry.displayName} (+${formatRupiah(entry.upcharge)})`);
+          } else {
+            parts.push(`${entry.count}x ${entry.displayName}`);
           }
         }
       } else {
@@ -469,7 +492,13 @@ export default function ItemCustomizerModal({
                             const isMaxStock = totalSelectedForThisItem >= itemStock;
                             const minSlotPrice = slotMinPrices.get(slot.id) ?? 0;
                             const itemPrice = 'price' in item && typeof item.price === 'number' ? effectivePrice(item as CustomizableProduct) : 0;
-                            const upcharge = minSlotPrice > 0 ? Math.max(0, itemPrice - minSlotPrice) : ('bundleUpcharge' in item ? (item.bundleUpcharge as number) || 0 : 0);
+                            const upcharge = isFixedPricingBundle
+                              ? 0
+                              : minSlotPrice > 0
+                                ? Math.max(0, itemPrice - minSlotPrice)
+                                : 'bundleUpcharge' in item
+                                  ? (item.bundleUpcharge as number) || 0
+                                  : 0;
 
                             return (
                               <div

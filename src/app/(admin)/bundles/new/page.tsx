@@ -23,6 +23,7 @@ export default async function NewBundlePage() {
         id: true,
         name: true,
         price: true,
+        discountPrice: true,
         costPrice: true,
         stock: true,
         type: { select: { name: true } },

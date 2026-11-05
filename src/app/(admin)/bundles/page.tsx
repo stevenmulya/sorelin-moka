@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Plus, Search, Layers, Edit2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatRupiah } from '@/lib/utils';
-import { parseBundleConfig, getBundleMaxStock } from '@/lib/bundle-config';
+import { parseBundleConfig, getBundleMaxStock, calculateBundlePriceStats } from '@/lib/bundle-config';
 import ActionForm, { SubmitButton } from '@/components/ActionForm';
 import { deleteProduct } from '@/app/actions';
 
@@ -101,6 +101,14 @@ export default async function BundlesPage({
               {bundles.map((bundle) => {
                 const config = parseBundleConfig(bundle.availableVariants);
                 const maxStock = getBundleMaxStock(bundle, singleProducts);
+                const hasDiscConfig = typeof config.discountAmount === 'number';
+                const stats = config.slots.length > 0
+                  ? calculateBundlePriceStats(
+                      config.slots,
+                      hasDiscConfig ? (config.discountAmount ?? 0) : 0,
+                      singleProducts
+                    )
+                  : null;
 
                 return (
                   <tr key={bundle.id} className="hover:bg-[#FAF0DA]/40 transition-colors">
@@ -139,7 +147,12 @@ export default async function BundlesPage({
                                 <>
                                   <Layers className="h-3 w-3" strokeWidth={1.5} />
                                   <span>
-                                    {s.quota}x {s.categoryName}
+                                    {s.quota}x{' '}
+                                    {s.allowedProductNames && s.allowedProductNames.length > 0
+                                      ? s.allowedProductNames
+                                          .map((n) => n.replace(/^Salt Bread\s+/i, ''))
+                                          .join(' / ')
+                                      : s.categoryName}
                                   </span>
                                 </>
                               ) : (
@@ -174,17 +187,39 @@ export default async function BundlesPage({
                     </td>
 
                     <td className="px-5 py-3.5 text-right">
-                      {bundle.discountPrice ? (
+                      {stats && hasDiscConfig ? (
+                        <div>
+                          <div className="text-[#6B4227] font-semibold">
+                            {stats.minFinalPrice === stats.maxFinalPrice
+                              ? formatRupiah(stats.minFinalPrice)
+                              : `${formatRupiah(stats.minFinalPrice)} – ${formatRupiah(stats.maxFinalPrice)}`}
+                          </div>
+                          {stats.discountAmount > 0 && (
+                            <div className="text-[11px] text-amber-800 font-medium mt-0.5">
+                              Save {formatRupiah(stats.discountAmount)}
+                            </div>
+                          )}
+                          <div className="text-xs text-[#8E6D53] mt-0.5">
+                            HPP:{' '}
+                            {stats.minCostPrice === stats.maxCostPrice
+                              ? formatRupiah(stats.minCostPrice)
+                              : `${formatRupiah(stats.minCostPrice)} – ${formatRupiah(stats.maxCostPrice)}`}
+                          </div>
+                        </div>
+                      ) : bundle.discountPrice ? (
                         <div>
                           <div className="text-[#6B4227] font-semibold">{formatRupiah(bundle.discountPrice)}</div>
                           <div className="text-xs text-[#8E6D53] mt-0.5 line-through">
                             {formatRupiah(bundle.price)}
                           </div>
+                          <div className="text-xs text-[#8E6D53] mt-0.5">Cost: {formatRupiah(bundle.costPrice)}</div>
                         </div>
                       ) : (
-                        <div className="text-[#6B4227] font-semibold">{formatRupiah(bundle.price)}</div>
+                        <div>
+                          <div className="text-[#6B4227] font-semibold">{formatRupiah(bundle.price)}</div>
+                          <div className="text-xs text-[#8E6D53] mt-0.5">Cost: {formatRupiah(bundle.costPrice)}</div>
+                        </div>
                       )}
-                      <div className="text-xs text-[#8E6D53] mt-0.5">Cost: {formatRupiah(bundle.costPrice)}</div>
                     </td>
 
                     <td className="px-5 py-3.5 text-right">

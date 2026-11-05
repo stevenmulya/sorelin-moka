@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { X, Check, Plus, Minus, Sparkles, Layers } from 'lucide-react';
 import { formatRupiah, effectivePrice } from '@/lib/utils';
-import { parseBundleConfig } from '@/lib/bundle-config';
+import { parseBundleConfig, getSlotCandidateProducts } from '@/lib/bundle-config';
 
 export interface ProductVariantItem {
   id: number;
@@ -139,45 +139,39 @@ export default function ItemCustomizerModal({
     return raw.replace(/^(include|termasuk)\s*:?\s*/i, '').trim() || 'Air Mineral';
   }, [product]);
 
-  // Map of category name (lowercase) -> min price among standalone products in that category
-  const categoryMinPrices = useMemo(() => {
+  // Map of slot.id -> minimum effective price among candidate products in that specific slot
+  const slotMinPrices = useMemo(() => {
     const map = new Map<string, number>();
-    (allProducts || []).forEach((p) => {
-      if (!p.isBundle && p.type?.name) {
-        const cat = p.type.name.trim().toLowerCase();
-        const eff = effectivePrice(p);
-        const curr = map.get(cat);
-        if (curr === undefined || eff < curr) {
-          map.set(cat, eff);
-        }
+    for (const slot of categorySlots) {
+      const candidates = getSlotCandidateProducts(slot, allProducts || []);
+      if (candidates.length > 0) {
+        const minP = Math.min(...candidates.map((p) => effectivePrice(p)));
+        map.set(slot.id, minP);
       }
-    });
+    }
     return map;
-  }, [allProducts]);
+  }, [categorySlots, allProducts]);
 
-  // Dynamic slot upcharge calculation based on selected items
+  // Dynamic slot upcharge calculation based on selected items relative to each slot's minimum candidate price
   const totalSlotUpcharge = useMemo(() => {
     if (!hasConfiguredSlots) return 0;
     let sum = 0;
     for (const slot of categorySlots) {
-      const catKey = slot.categoryName ? slot.categoryName.trim().toLowerCase() : '';
-      const minCatPrice = categoryMinPrices.get(catKey) ?? 0;
-      const matchingProducts = (allProducts || []).filter(
-        (p) => p.type?.name?.trim().toLowerCase() === catKey && !p.isBundle
-      );
+      const minSlotPrice = slotMinPrices.get(slot.id) ?? 0;
+      const matchingProducts = getSlotCandidateProducts(slot, allProducts || []);
       const items = slotSelections[slot.id] || {};
       for (const [name, count] of Object.entries(items)) {
         if (count > 0) {
           const prod = matchingProducts.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
           if (prod) {
-            const upcharge = minCatPrice > 0 ? Math.max(0, effectivePrice(prod) - minCatPrice) : 0;
+            const upcharge = minSlotPrice > 0 ? Math.max(0, effectivePrice(prod) - minSlotPrice) : 0;
             sum += upcharge * count;
           }
         }
       }
     }
     return sum;
-  }, [hasConfiguredSlots, categorySlots, categoryMinPrices, allProducts, slotSelections]);
+  }, [hasConfiguredSlots, categorySlots, slotMinPrices, allProducts, slotSelections]);
 
   const totalLegacyUpcharge = useMemo(() => {
     if (hasConfiguredSlots) return 0;
@@ -323,18 +317,15 @@ export default function ItemCustomizerModal({
       const parts: string[] = [];
 
       if (hasConfiguredSlots) {
-        // Collect items from category slots
+        // Collect items from category/custom option slots
         for (const slot of categorySlots) {
-          const catKey = slot.categoryName ? slot.categoryName.trim().toLowerCase() : '';
-          const minCatPrice = categoryMinPrices.get(catKey) ?? 0;
-          const matchingProducts = (allProducts || []).filter(
-            (p) => p.type?.name?.trim().toLowerCase() === catKey && !p.isBundle
-          );
+          const minSlotPrice = slotMinPrices.get(slot.id) ?? 0;
+          const matchingProducts = getSlotCandidateProducts(slot, allProducts || []);
           const items = slotSelections[slot.id] || {};
           for (const [name, count] of Object.entries(items)) {
             if (count > 0) {
               const prod = matchingProducts.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
-              const upcharge = prod && minCatPrice > 0 ? Math.max(0, effectivePrice(prod) - minCatPrice) : 0;
+              const upcharge = prod && minSlotPrice > 0 ? Math.max(0, effectivePrice(prod) - minSlotPrice) : 0;
               if (upcharge > 0) {
                 parts.push(`${count}x ${name} (+${formatRupiah(upcharge)})`);
               } else {
@@ -433,14 +424,10 @@ export default function ItemCustomizerModal({
                     const slotQuota = slot.quota || 1;
                     const slotReady = slotCount === slotQuota;
 
-                    // Match products from allProducts where category name matches slot.categoryName
-                    const matchingProducts = (allProducts || []).filter(
-                      (p) =>
-                        p.type?.name?.toLowerCase() === slot.categoryName?.toLowerCase() &&
-                        !p.isBundle
-                    );
+                    // Match products eligible for this slot (either specific allowedProductNames or full category)
+                    const matchingProducts = getSlotCandidateProducts(slot, allProducts || []);
 
-                    // Fallback to legacy variants if no standalone products in category
+                    // Fallback to legacy variants if no standalone products match
                     const displayItems =
                       matchingProducts.length > 0
                         ? matchingProducts
@@ -480,10 +467,9 @@ export default function ItemCustomizerModal({
                             const totalSelectedForThisItem = getTotalSelectedAcrossCategorySlots(item.name);
                             const isOutOfStock = itemStock <= 0;
                             const isMaxStock = totalSelectedForThisItem >= itemStock;
-                            const catKey = slot.categoryName ? slot.categoryName.trim().toLowerCase() : '';
-                            const minCatPrice = categoryMinPrices.get(catKey) ?? 0;
+                            const minSlotPrice = slotMinPrices.get(slot.id) ?? 0;
                             const itemPrice = 'price' in item && typeof item.price === 'number' ? effectivePrice(item as CustomizableProduct) : 0;
-                            const upcharge = minCatPrice > 0 ? Math.max(0, itemPrice - minCatPrice) : ('bundleUpcharge' in item ? (item.bundleUpcharge as number) || 0 : 0);
+                            const upcharge = minSlotPrice > 0 ? Math.max(0, itemPrice - minSlotPrice) : ('bundleUpcharge' in item ? (item.bundleUpcharge as number) || 0 : 0);
 
                             return (
                               <div

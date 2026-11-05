@@ -13,10 +13,10 @@ import {
   Package,
   Layers,
   Sparkles,
-  Percent,
   Coins,
   Lock,
   CheckCircle2,
+  CheckSquare,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatRupiah } from '@/lib/utils';
@@ -24,6 +24,7 @@ import {
   type BundleSlotRule,
   parseBundleConfig,
   serializeBundleConfig,
+  calculateBundlePriceStats,
 } from '@/lib/bundle-config';
 
 interface CategoryOption {
@@ -35,6 +36,7 @@ interface ProductOption {
   id: number;
   name: string;
   price: number;
+  discountPrice?: number | null;
   costPrice: number;
   stock: number;
   type?: { name: string } | null;
@@ -50,6 +52,11 @@ interface BundleProductData {
   discountPrice?: number | null;
   availableVariants?: string | null;
   bundleQuota?: number | null;
+}
+
+function formatRange(min: number, max: number): string {
+  if (min === max) return formatRupiah(min);
+  return `${formatRupiah(min)} – ${formatRupiah(max)}`;
 }
 
 export default function BundleForm({
@@ -92,153 +99,143 @@ export default function BundleForm({
     return Array.from(map.values());
   }, [categories, availableProducts]);
 
-  // Bundle Slot Rules: empty when creating a new bundle, loaded from config when editing
-  const initialSlots = useMemo(() => {
-    if (!initialData) return [];
-    const config = parseBundleConfig(initialData.availableVariants);
-    return config.slots;
+  // Parse initial bundle config when editing
+  const parsedInitialConfig = useMemo(() => {
+    if (!initialData) return { slots: [] as BundleSlotRule[], discountAmount: undefined };
+    return parseBundleConfig(initialData.availableVariants);
   }, [initialData]);
 
-  const [slots, setSlots] = useState<BundleSlotRule[]>(initialSlots);
+  const [slots, setSlots] = useState<BundleSlotRule[]>(parsedInitialConfig.slots);
 
-  // Helper: compute individual slot cost and metadata
-  const getSlotCostInfo = (slot: BundleSlotRule) => {
-    if (slot.type === 'PRODUCT') {
-      const prod = availableProducts.find(
-        (p) => p.name.trim().toLowerCase() === slot.productName?.trim().toLowerCase()
-      );
-      const unitCost = prod?.costPrice ?? 0;
-      const unitPrice = prod?.price ?? 0;
-      const qty = slot.quantity || 1;
-      return {
-        unitCost,
-        unitPrice,
-        totalCost: unitCost * qty,
-        productName: prod?.name || slot.productName,
-      };
-    } else {
-      const catProds = availableProducts.filter(
-        (p) => p.type?.name?.trim().toLowerCase() === slot.categoryName?.trim().toLowerCase()
-      );
-      if (catProds.length > 0) {
-        const avgCost = Math.round(
-          catProds.reduce((sum, p) => sum + (p.costPrice || 0), 0) / catProds.length
-        );
-        const avgPrice = Math.round(
-          catProds.reduce((sum, p) => sum + (p.price || 0), 0) / catProds.length
-        );
-        const quota = slot.quota || 1;
-        return {
-          unitCost: avgCost,
-          unitPrice: avgPrice,
-          totalCost: avgCost * quota,
-          productCount: catProds.length,
-        };
-      }
-      return {
-        unitCost: 0,
-        unitPrice: 0,
-        totalCost: 0,
-        productCount: 0,
-      };
+  // Initial nominal discount amount (Rp)
+  const initialDiscountAmount = useMemo(() => {
+    if (typeof parsedInitialConfig.discountAmount === 'number') {
+      return String(parsedInitialConfig.discountAmount);
     }
-  };
-
-  // Strictly Derived Cost Price (HPP) - cannot be edited manually
-  const derivedCostPrice = slots.reduce((total, s) => {
-    const info = getSlotCostInfo(s);
-    return total + info.totalCost;
-  }, 0);
-
-  // Selling Price & Discount %
-  const [priceRaw, setPriceRaw] = useState<string>(
-    initialData?.price !== undefined ? String(initialData.price) : ''
-  );
-  const price = Number(priceRaw) || 0;
-
-  const initialDiscountPercent = (() => {
-    if (initialData?.discountPrice && initialData?.price && initialData.discountPrice < initialData.price) {
-      return Math.round(((initialData.price - initialData.discountPrice) / initialData.price) * 100);
+    if (initialData && parsedInitialConfig.slots.length > 0 && initialData.price) {
+      const baseStats = calculateBundlePriceStats(parsedInitialConfig.slots, 0, availableProducts);
+      const savedEffective =
+        initialData.discountPrice && initialData.discountPrice > 0 && initialData.discountPrice < initialData.price
+          ? initialData.discountPrice
+          : initialData.price;
+      const derivedDisc = Math.max(0, baseStats.minNormalPrice - savedEffective);
+      return String(derivedDisc);
     }
-    return 0;
-  })();
-  const [discountPercent, setDiscountPercent] = useState<number>(initialDiscountPercent);
+    return '0';
+  }, [parsedInitialConfig, initialData, availableProducts]);
 
-  const finalDiscountPrice =
-    discountPercent > 0 && price > 0 ? Math.round(price * (1 - discountPercent / 100)) : null;
-  const effectivePrice = finalDiscountPrice ?? price;
-  const savings = finalDiscountPrice ? price - finalDiscountPrice : 0;
+  const [discountAmountRaw, setDiscountAmountRaw] = useState<string>(initialDiscountAmount);
+  const discountAmount = Math.max(0, Math.round(Number(discountAmountRaw) || 0));
 
-  // Real-time Profit Margin Calculation based on Derived Cost Price
-  const estimatedProfit = effectivePrice - derivedCostPrice;
-  const profitMarginPercent = effectivePrice > 0 ? Math.round((estimatedProfit / effectivePrice) * 100) : 0;
+  // Exact Min-Max Price, Cost (HPP), and Profit Calculation
+  const stats = useMemo(() => {
+    return calculateBundlePriceStats(slots, discountAmount, availableProducts);
+  }, [slots, discountAmount, availableProducts]);
 
   // Add Slot Form State
-  const [newSlotType, setNewSlotType] = useState<'CATEGORY' | 'PRODUCT'>('CATEGORY');
+  const [newSlotMode, setNewSlotMode] = useState<'PRODUCT' | 'CUSTOM_OPTIONS' | 'CATEGORY'>('PRODUCT');
   const [newCategoryName, setNewCategoryName] = useState<string>(validCategories[0]?.name || '');
   const [newQuota, setNewQuota] = useState<number>(1);
+  const [newCustomLabel, setNewCustomLabel] = useState<string>('');
+  const [selectedCustomProducts, setSelectedCustomProducts] = useState<string[]>([]);
   const [newProductName, setNewProductName] = useState<string>(availableProducts[0]?.name || '');
   const [newQuantity, setNewQuantity] = useState<number>(1);
   const [isAddingSlot, setIsAddingSlot] = useState<boolean>(false);
 
-  // Previews for the new slot form
+  // Previews for the new slot form (exact min-max ranges, never misleading averages)
   const previewCategoryInfo = useMemo(() => {
     const catProds = availableProducts.filter(
       (p) => p.type?.name?.trim().toLowerCase() === newCategoryName?.trim().toLowerCase()
     );
+    const q = Math.max(1, newQuota);
     if (catProds.length > 0) {
-      const avgCost = Math.round(
-        catProds.reduce((sum, p) => sum + (p.costPrice || 0), 0) / catProds.length
-      );
+      const costs = catProds.map((p) => p.costPrice || 0);
+      const prices = catProds.map((p) => p.price || 0);
       return {
-        avgCost,
-        totalEstCost: avgCost * Math.max(1, newQuota),
+        minCost: Math.min(...costs) * q,
+        maxCost: Math.max(...costs) * q,
+        minPrice: Math.min(...prices) * q,
+        maxPrice: Math.max(...prices) * q,
         count: catProds.length,
       };
     }
-    return { avgCost: 0, totalEstCost: 0, count: 0 };
+    return { minCost: 0, maxCost: 0, minPrice: 0, maxPrice: 0, count: 0 };
   }, [newCategoryName, newQuota, availableProducts]);
+
+  const previewCustomOptionsInfo = useMemo(() => {
+    const allowedSet = new Set(selectedCustomProducts.map((n) => n.trim().toLowerCase()));
+    const customProds = availableProducts.filter((p) =>
+      allowedSet.has(p.name.trim().toLowerCase())
+    );
+    const q = Math.max(1, newQuota);
+    if (customProds.length > 0) {
+      const costs = customProds.map((p) => p.costPrice || 0);
+      const prices = customProds.map((p) => p.price || 0);
+      return {
+        minCost: Math.min(...costs) * q,
+        maxCost: Math.max(...costs) * q,
+        minPrice: Math.min(...prices) * q,
+        maxPrice: Math.max(...prices) * q,
+        count: customProds.length,
+      };
+    }
+    return { minCost: 0, maxCost: 0, minPrice: 0, maxPrice: 0, count: 0 };
+  }, [selectedCustomProducts, newQuota, availableProducts]);
 
   const previewProductInfo = useMemo(() => {
     const prod = availableProducts.find(
       (p) => p.name.trim().toLowerCase() === newProductName?.trim().toLowerCase()
     );
     const unitCost = prod?.costPrice ?? 0;
+    const unitPrice = prod?.price ?? 0;
+    const q = Math.max(1, newQuantity);
     return {
       unitCost,
-      totalCost: unitCost * Math.max(1, newQuantity),
-      price: prod?.price ?? 0,
+      unitPrice,
+      totalCost: unitCost * q,
+      totalPrice: unitPrice * q,
     };
   }, [newProductName, newQuantity, availableProducts]);
 
+  const toggleCustomProduct = (prodName: string) => {
+    setSelectedCustomProducts((prev) =>
+      prev.includes(prodName) ? prev.filter((n) => n !== prodName) : [...prev, prodName]
+    );
+  };
+
   const handleAddSlot = () => {
-    if (newSlotType === 'CATEGORY') {
+    if (newSlotMode === 'CATEGORY') {
       if (!newCategoryName) return;
       const addQuota = Math.max(1, newQuota);
-      setSlots((prev) => {
-        const existingIdx = prev.findIndex(
-          (s) =>
-            s.type === 'CATEGORY' &&
-            s.categoryName?.trim().toLowerCase() === newCategoryName.trim().toLowerCase()
-        );
-        if (existingIdx !== -1) {
-          const updated = [...prev];
-          updated[existingIdx] = {
-            ...updated[existingIdx],
-            quota: (updated[existingIdx].quota || 1) + addQuota,
-          };
-          return updated;
-        }
-        return [
-          ...prev,
-          {
-            id: Math.random().toString(36).substring(2, 9),
-            type: 'CATEGORY',
-            categoryName: newCategoryName,
-            quota: addQuota,
-          },
-        ];
-      });
+      setSlots((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          type: 'CATEGORY',
+          categoryName: newCategoryName,
+          quota: addQuota,
+        },
+      ]);
+    } else if (newSlotMode === 'CUSTOM_OPTIONS') {
+      if (selectedCustomProducts.length === 0) return;
+      const addQuota = Math.max(1, newQuota);
+      const defaultLabel =
+        newCustomLabel.trim() ||
+        selectedCustomProducts
+          .map((n) => n.replace(/^Salt Bread\s+/i, ''))
+          .join(' / ');
+      setSlots((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          type: 'CATEGORY',
+          categoryName: defaultLabel,
+          quota: addQuota,
+          allowedProductNames: [...selectedCustomProducts],
+        },
+      ]);
+      setSelectedCustomProducts([]);
+      setNewCustomLabel('');
     } else {
       if (!newProductName) return;
       const addQty = Math.max(1, newQuantity);
@@ -303,8 +300,8 @@ export default function BundleForm({
   }, [slots]);
 
   const serializedConfig = useMemo(() => {
-    return serializeBundleConfig({ slots });
-  }, [slots]);
+    return serializeBundleConfig({ slots, discountAmount });
+  }, [slots, discountAmount]);
 
   const handleDeleteImage = async (imageId: number) => {
     if (!initialData?.id) return;
@@ -332,7 +329,7 @@ export default function BundleForm({
               {isEditing ? 'Edit Bundle' : 'Create New Bundle'}
             </h1>
             <p className="text-xs text-[#8E6D53] mt-0.5 font-normal">
-              Bundle cost price is automatically derived from included products and categories.
+              Configure fixed items, customer option slots, and nominal bundle discount. Selling price &amp; HPP follow customer choices automatically.
             </p>
           </div>
         </div>
@@ -344,8 +341,10 @@ export default function BundleForm({
         <input type="hidden" name="type" value="" />
         <input type="hidden" name="bundleQuota" value={Math.max(1, totalCategoryQuota + totalFixedCount)} />
         <input type="hidden" name="availableVariants" value={serializedConfig} />
-        {/* Strictly Derived Cost Price - Submitted directly to database */}
-        <input type="hidden" name="costPrice" value={derivedCostPrice} />
+        {/* Minimum starting bundle price & minimum HPP stored on Product record */}
+        <input type="hidden" name="price" value={stats.minFinalPrice} />
+        <input type="hidden" name="costPrice" value={stats.minCostPrice} />
+        <input type="hidden" name="discountPrice" value="" />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Main Info (Left 2 Columns) */}
@@ -387,15 +386,15 @@ export default function BundleForm({
               </div>
             </div>
 
-            {/* Card 2: Bundle Components (By Category or By Product) */}
+            {/* Card 2: Bundle Components (Fixed Product, Custom Product Options, or Full Category) */}
             <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-[#E5D5BC]/60 pb-3">
                 <div className="flex items-center gap-2">
                   <Layers className="h-4 w-4 text-[#C88A32]" strokeWidth={1.5} />
                   <div>
-                    <h2 className="font-semibold text-sm text-[#3F2311]">Bundle Components & Rules</h2>
+                    <h2 className="font-semibold text-sm text-[#3F2311]">Bundle Components &amp; Choice Slots</h2>
                     <p className="text-[11px] text-[#8E6D53] font-light">
-                      Add components either *By Category* (customer choices) or *By Product Item* (fixed includes).
+                      Add Fixed Items, Specific Product Options (e.g. Choco or Cheese), or Full Category Choices.
                     </p>
                   </div>
                 </div>
@@ -426,45 +425,204 @@ export default function BundleForm({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setNewSlotType('CATEGORY')}
+                      onClick={() => setNewSlotMode('PRODUCT')}
                       className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        newSlotType === 'CATEGORY'
-                          ? 'bg-[#FFFDF8] border-[#6B4227] ring-2 ring-[#6B4227]/20 shadow-xs'
-                          : 'bg-[#FAF0DA]/50 border-[#E5D5BC] text-[#8E6D53]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Layers className="h-3.5 w-3.5 text-[#6B4227]" strokeWidth={1.5} />
-                        <span className="text-xs font-semibold text-[#3F2311]">By Category</span>
-                      </div>
-                      <span className="text-[10px] text-[#8E6D53] block font-light leading-relaxed">
-                        Customer chooses flavor options from this category.
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setNewSlotType('PRODUCT')}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        newSlotType === 'PRODUCT'
+                        newSlotMode === 'PRODUCT'
                           ? 'bg-[#FFFDF8] border-[#6B4227] ring-2 ring-[#6B4227]/20 shadow-xs'
                           : 'bg-[#FAF0DA]/50 border-[#E5D5BC] text-[#8E6D53]'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
                         <Sparkles className="h-3.5 w-3.5 text-emerald-600" strokeWidth={1.5} />
-                        <span className="text-xs font-semibold text-[#3F2311]">By Product Item</span>
+                        <span className="text-xs font-semibold text-[#3F2311]">Fixed Item</span>
                       </div>
                       <span className="text-[10px] text-[#8E6D53] block font-light leading-relaxed">
-                        Specific product automatically included in the package.
+                        Specific product automatically included (e.g. 1x Original).
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewSlotMode('CUSTOM_OPTIONS')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        newSlotMode === 'CUSTOM_OPTIONS'
+                          ? 'bg-[#FFFDF8] border-[#6B4227] ring-2 ring-[#6B4227]/20 shadow-xs'
+                          : 'bg-[#FAF0DA]/50 border-[#E5D5BC] text-[#8E6D53]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <CheckSquare className="h-3.5 w-3.5 text-[#C88A32]" strokeWidth={1.5} />
+                        <span className="text-xs font-semibold text-[#3F2311]">Specific Options</span>
+                      </div>
+                      <span className="text-[10px] text-[#8E6D53] block font-light leading-relaxed">
+                        Customer chooses from checked products (e.g. Choco or Cheese).
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewSlotMode('CATEGORY')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        newSlotMode === 'CATEGORY'
+                          ? 'bg-[#FFFDF8] border-[#6B4227] ring-2 ring-[#6B4227]/20 shadow-xs'
+                          : 'bg-[#FAF0DA]/50 border-[#E5D5BC] text-[#8E6D53]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Layers className="h-3.5 w-3.5 text-[#6B4227]" strokeWidth={1.5} />
+                        <span className="text-xs font-semibold text-[#3F2311]">Full Category</span>
+                      </div>
+                      <span className="text-[10px] text-[#8E6D53] block font-light leading-relaxed">
+                        Customer chooses from all products in a category.
                       </span>
                     </button>
                   </div>
 
-                  {newSlotType === 'CATEGORY' ? (
+                  {newSlotMode === 'PRODUCT' && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-medium text-[#8E6D53] mb-1">
+                            Select Fixed Product:
+                          </label>
+                          <select
+                            value={newProductName}
+                            onChange={(e) => setNewProductName(e.target.value)}
+                            className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-medium text-[#3F2311] focus:ring-2 focus:ring-[#6B4227]/15 cursor-pointer"
+                          >
+                            {availableProducts.map((p) => (
+                              <option key={p.id} value={p.name}>
+                                {p.name} {p.type?.name ? `(${p.type.name})` : ''} — Sell: {formatRupiah(p.price)} | HPP: {formatRupiah(p.costPrice)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-medium text-[#8E6D53] mb-1">
+                            Quantity Included:
+                          </label>
+                          <input
+                            type="number"
+                            value={newQuantity}
+                            onChange={(e) => setNewQuantity(Math.max(1, Number(e.target.value)))}
+                            min={1}
+                            max={20}
+                            placeholder="Enter item quantity"
+                            className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-semibold text-[#6B4227] focus:ring-2 focus:ring-[#6B4227]/15"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs flex items-center justify-between">
+                        <span className="text-[#8E6D53]">Normal Price / Actual HPP:</span>
+                        <span className="font-semibold text-emerald-800">
+                          Sell: {formatRupiah(previewProductInfo.totalPrice)} • HPP: {formatRupiah(previewProductInfo.totalCost)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {newSlotMode === 'CUSTOM_OPTIONS' && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-medium text-[#8E6D53] mb-1">
+                            Slot Title (Optional):
+                          </label>
+                          <input
+                            type="text"
+                            value={newCustomLabel}
+                            onChange={(e) => setNewCustomLabel(e.target.value)}
+                            placeholder="Enter choice slot label"
+                            maxLength={60}
+                            className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-medium text-[#3F2311] placeholder-[#9E826B] focus:ring-2 focus:ring-[#6B4227]/15"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-medium text-[#8E6D53] mb-1">
+                            Customer Choice Quota:
+                          </label>
+                          <input
+                            type="number"
+                            value={newQuota}
+                            onChange={(e) => setNewQuota(Math.max(1, Number(e.target.value)))}
+                            min={1}
+                            max={20}
+                            placeholder="Enter choice quota"
+                            className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-semibold text-[#6B4227] focus:ring-2 focus:ring-[#6B4227]/15"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-medium text-[#8E6D53]">
+                            Check Allowed Products for This Slot ({selectedCustomProducts.length} selected):
+                          </label>
+                          {selectedCustomProducts.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCustomProducts([])}
+                              className="text-[10px] font-semibold text-[#6B4227] hover:underline cursor-pointer"
+                            >
+                              Clear selection
+                            </button>
+                          )}
+                        </div>
+                        <div className="max-h-48 overflow-y-auto divide-y divide-[#E5D5BC]/60 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg">
+                          {availableProducts.map((p) => {
+                            const checked = selectedCustomProducts.includes(p.name);
+                            return (
+                              <label
+                                key={p.id}
+                                className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer transition-colors ${
+                                  checked ? 'bg-[#FAF0DA]/90 font-semibold' : 'hover:bg-[#FAF0DA]/30'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleCustomProduct(p.name)}
+                                    className="rounded border-[#E5D5BC] text-[#6B4227] focus:ring-[#6B4227] cursor-pointer"
+                                  />
+                                  <span className="text-[#3F2311]">{p.name}</span>
+                                  {p.type?.name && (
+                                    <span className="text-[10px] text-[#8E6D53] bg-[#FAF0DA] px-1.5 py-0.2 rounded border border-[#E5D5BC]">
+                                      {p.type.name}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-[#8E6D53]">
+                                  Sell: <strong className="text-[#6B4227]">{formatRupiah(p.price)}</strong> • HPP:{' '}
+                                  <strong className="text-emerald-800">{formatRupiah(p.costPrice)}</strong>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[#8E6D53]">
+                          Slot Range ({previewCustomOptionsInfo.count} allowed options):
+                        </span>
+                        <span className="font-semibold text-[#6B4227]">
+                          Sell: {formatRange(previewCustomOptionsInfo.minPrice, previewCustomOptionsInfo.maxPrice)} • Actual HPP:{' '}
+                          <span className="text-emerald-800">
+                            {formatRange(previewCustomOptionsInfo.minCost, previewCustomOptionsInfo.maxCost)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {newSlotMode === 'CATEGORY' && (
                     <div className="space-y-3 pt-1">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -500,62 +658,14 @@ export default function BundleForm({
                         </div>
                       </div>
 
-                      {/* Real-time Category Cost Preview */}
-                      <div className="p-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs flex items-center justify-between">
+                      <div className="p-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[#8E6D53]">
-                          Est. Cost ({previewCategoryInfo.count} products in category):
+                          Category Range ({previewCategoryInfo.count} products):
                         </span>
                         <span className="font-semibold text-[#6B4227]">
-                          {formatRupiah(previewCategoryInfo.totalEstCost)}{' '}
-                          <span className="text-[10px] text-[#8E6D53] font-normal">
-                            ({formatRupiah(previewCategoryInfo.avgCost)}/choice avg.)
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pt-1">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[11px] font-medium text-[#8E6D53] mb-1">
-                            Select Product:
-                          </label>
-                          <select
-                            value={newProductName}
-                            onChange={(e) => setNewProductName(e.target.value)}
-                            className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-medium text-[#3F2311] focus:ring-2 focus:ring-[#6B4227]/15 cursor-pointer"
-                          >
-                            {availableProducts.map((p) => (
-                              <option key={p.id} value={p.name}>
-                                {p.name} {p.type?.name ? `(${p.type.name})` : ''} — Sell: {formatRupiah(p.price)} | Cost: {formatRupiah(p.costPrice)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-medium text-[#8E6D53] mb-1">
-                            Quantity Included:
-                          </label>
-                          <input
-                            type="number"
-                            value={newQuantity}
-                            onChange={(e) => setNewQuantity(Math.max(1, Number(e.target.value)))}
-                            min={1}
-                            max={20}
-                            placeholder="Enter item quantity"
-                            className="w-full px-3 py-2 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs font-semibold text-[#6B4227] focus:ring-2 focus:ring-[#6B4227]/15"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Real-time Product Cost Preview */}
-                      <div className="p-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg text-xs flex items-center justify-between">
-                        <span className="text-[#8E6D53]">Component Cost (HPP):</span>
-                        <span className="font-semibold text-emerald-800">
-                          {formatRupiah(previewProductInfo.totalCost)}{' '}
-                          <span className="text-[10px] text-[#8E6D53] font-normal">
-                            ({formatRupiah(previewProductInfo.unitCost)}/unit)
+                          Sell: {formatRange(previewCategoryInfo.minPrice, previewCategoryInfo.maxPrice)} • Actual HPP:{' '}
+                          <span className="text-emerald-800">
+                            {formatRange(previewCategoryInfo.minCost, previewCategoryInfo.maxCost)}
                           </span>
                         </span>
                       </div>
@@ -573,7 +683,8 @@ export default function BundleForm({
                     <button
                       type="button"
                       onClick={handleAddSlot}
-                      className="px-4 py-1.5 bg-[#6B4227] text-[#FAF0DA] hover:bg-[#54311B] rounded-lg text-xs font-medium cursor-pointer shadow-xs"
+                      disabled={newSlotMode === 'CUSTOM_OPTIONS' && selectedCustomProducts.length === 0}
+                      className="px-4 py-1.5 bg-[#6B4227] text-[#FAF0DA] hover:bg-[#54311B] disabled:opacity-40 rounded-lg text-xs font-medium cursor-pointer shadow-xs"
                     >
                       Add to Bundle
                     </button>
@@ -589,7 +700,8 @@ export default function BundleForm({
                   </div>
                 ) : (
                   slots.map((s, idx) => {
-                    const slotCost = getSlotCostInfo(s);
+                    const detail = stats.slotDetails[idx];
+                    const hasCustomList = Boolean(s.allowedProductNames && s.allowedProductNames.length > 0);
 
                     return (
                       <div
@@ -598,7 +710,7 @@ export default function BundleForm({
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center font-semibold text-xs ${
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center font-semibold text-xs shrink-0 ${
                               s.type === 'CATEGORY'
                                 ? 'bg-[#6B4227] text-[#FAF0DA]'
                                 : 'bg-emerald-100 text-emerald-800'
@@ -610,16 +722,24 @@ export default function BundleForm({
                             {s.type === 'CATEGORY' ? (
                               <div>
                                 <p className="text-xs font-medium text-[#3F2311]">
-                                  By Category:{' '}
+                                  {hasCustomList ? 'Specific Choice:' : 'Category Choice:'}{' '}
                                   <span className="font-semibold text-[#6B4227]">{s.categoryName}</span>{' '}
-                                  ({s.quota} Choices)
+                                  (Choose {s.quota}x)
                                 </p>
+                                {hasCustomList && (
+                                  <p className="text-[11px] text-[#6B4227] font-medium mt-0.5">
+                                    Options: {s.allowedProductNames?.join(' / ')}
+                                  </p>
+                                )}
                                 <p className="text-[11px] text-[#8E6D53] font-light mt-0.5">
-                                  Customers choose {s.quota} flavor option(s) • Est. Cost:{' '}
-                                  <strong className="text-[#6B4227] font-semibold">
-                                    {formatRupiah(slotCost.totalCost)}
+                                  Normal Price:{' '}
+                                  <strong className="text-[#3F2311] font-semibold">
+                                    {detail ? formatRange(detail.minTotalPrice, detail.maxTotalPrice) : formatRupiah(0)}
                                   </strong>{' '}
-                                  ({formatRupiah(slotCost.unitCost)}/choice)
+                                  • Actual HPP:{' '}
+                                  <strong className="text-emerald-800 font-semibold">
+                                    {detail ? formatRange(detail.minTotalCost, detail.maxTotalCost) : formatRupiah(0)}
+                                  </strong>
                                 </p>
                               </div>
                             ) : (
@@ -627,7 +747,7 @@ export default function BundleForm({
                                 <p className="text-xs font-medium text-[#3F2311] flex items-center gap-1.5">
                                   <Sparkles className="h-3.5 w-3.5 text-emerald-600" strokeWidth={1.5} />
                                   <span>
-                                    By Product Item:{' '}
+                                    Fixed Item:{' '}
                                     <strong className="font-semibold text-[#3F2311]">
                                       {s.productName}
                                     </strong>{' '}
@@ -635,18 +755,21 @@ export default function BundleForm({
                                   </span>
                                 </p>
                                 <p className="text-[11px] text-emerald-800 font-light mt-0.5">
-                                  Automatically included in bundle • Cost:{' '}
-                                  <strong className="text-emerald-900 font-semibold">
-                                    {formatRupiah(slotCost.totalCost)}
+                                  Normal Price:{' '}
+                                  <strong className="text-[#3F2311] font-semibold">
+                                    {detail ? formatRupiah(detail.minTotalPrice) : formatRupiah(0)}
                                   </strong>{' '}
-                                  ({formatRupiah(slotCost.unitCost)}/unit)
+                                  • Actual HPP:{' '}
+                                  <strong className="text-emerald-900 font-semibold">
+                                    {detail ? formatRupiah(detail.minTotalCost) : formatRupiah(0)}
+                                  </strong>
                                 </p>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <div className="flex items-center bg-[#FFFDF8] border border-[#E5D5BC] rounded-lg overflow-hidden">
                             <button
                               type="button"
@@ -687,165 +810,157 @@ export default function BundleForm({
               <div className="p-3.5 bg-[#FAF0DA]/80 rounded-xl border border-[#E5D5BC] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-3 text-[#5C3A21]">
                   <span>
-                    Choices: <strong className="text-[#6B4227]">{totalCategoryQuota} item(s)</strong>
+                    Customer Choices: <strong className="text-[#6B4227]">{totalCategoryQuota} item(s)</strong>
                   </span>
                   <span>•</span>
                   <span>
-                    Fixed: <strong className="text-emerald-800">{totalFixedCount} item(s)</strong>
+                    Fixed Items: <strong className="text-emerald-800">{totalFixedCount} item(s)</strong>
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[#8E6D53]">Derived Cost Price (HPP):</span>
+                  <span className="text-[#8E6D53]">Actual HPP Range:</span>
                   <span className="font-bold text-[#6B4227] text-sm">
-                    {formatRupiah(derivedCostPrice)}
+                    {formatRange(stats.minCostPrice, stats.maxCostPrice)}
                   </span>
                   <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-medium ml-1">
-                    Auto-Derived
+                    Exact Per Choice
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Card 3: Pricing & Discounts (Cost Price Strictly Non-Editable) */}
+            {/* Card 3: Discount-Based Bundle Pricing & Exact Margin Preview */}
             <div className="bg-[#FFFDF8] border border-[#E5D5BC] rounded-2xl p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-[#E5D5BC]/60 pb-3">
                 <div className="flex items-center gap-2">
                   <Coins className="h-4 w-4 text-[#C88A32]" strokeWidth={1.5} />
                   <div>
-                    <h2 className="font-semibold text-sm text-[#3F2311]">Pricing & Profit Calculation</h2>
+                    <h2 className="font-semibold text-sm text-[#3F2311]">Bundle Discount &amp; Dynamic Pricing</h2>
                     <p className="text-[11px] text-[#8E6D53] font-light">
-                      Cost price is automatically derived. Set your selling price and promo discount.
+                      Item selling prices &amp; HPP are already set per product. Simply enter the nominal bundle discount (Rp).
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" strokeWidth={1.5} />
-                  <span className="text-[11px] font-medium">Auto-Calculated Cost</span>
+                  <span className="text-[11px] font-medium">Dynamic Per Item</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                {/* Derived Cost Price - LOCKED / READ-ONLY */}
+                {/* 1. Normal Combined Selling Price (Read-Only) */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-[#8E6D53] flex items-center gap-1">
                       <Lock className="h-3 w-3 text-[#8E6D53]" strokeWidth={1.5} />
-                      <span>Cost Price (HPP)</span>
+                      <span>Normal Total Price</span>
                     </label>
-                    <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                      Locked
+                    <span className="text-[10px] font-medium text-[#6B4227] bg-[#FAF0DA] px-1.5 py-0.2 rounded border border-[#E5D5BC]">
+                      Auto
                     </span>
                   </div>
-                  <div className="w-full px-3.5 py-2.5 bg-[#FAF0DA]/50 border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] flex items-center justify-between select-none">
-                    <span>{formatRupiah(derivedCostPrice)}</span>
-                    <span className="text-[10px] text-[#8E6D53] font-normal">Derived</span>
+                  <div className="w-full px-3.5 py-2.5 bg-[#FAF0DA]/50 border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#3F2311] flex items-center justify-between select-none">
+                    <span>{formatRange(stats.minNormalPrice, stats.maxNormalPrice)}</span>
                   </div>
                   <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
-                    Follows component cost prices automatically
+                    Sum of normal selling prices of chosen items
                   </p>
                 </div>
 
-                {/* Selling Price */}
+                {/* 2. Bundle Discount Amount (Nominal Rp) */}
                 <div>
                   <label className="block text-xs font-medium text-[#8E6D53] mb-1.5">
-                    Selling Price <span className="text-red-500">*</span>
+                    Bundle Discount (Rp) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
-                    name="price"
-                    value={priceRaw}
-                    onChange={(e) => setPriceRaw(e.target.value)}
-                    min={1}
-                    required
-                    placeholder="Enter selling price"
-                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#6B4227] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
+                    value={discountAmountRaw}
+                    onChange={(e) => setDiscountAmountRaw(e.target.value)}
+                    min={0}
+                    step={500}
+                    placeholder="Enter discount amount"
+                    className="w-full px-3.5 py-2.5 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
                   />
                   <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
-                    Regular customer price before discount
+                    Nominal discount subtracted from selected items
                   </p>
                 </div>
 
-                {/* Discount (%) */}
+                {/* 3. Actual HPP Range (Read-Only) */}
                 <div>
-                  <label className="block text-xs font-medium text-[#8E6D53] mb-1.5 flex items-center justify-between">
-                    <span>Discount (%)</span>
-                    <span className="text-[11px] text-[#8E6D53] font-light">Optional</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      name="discountPercent"
-                      value={discountPercent || ''}
-                      onChange={(e) => {
-                        const val = Math.min(99, Math.max(0, Number(e.target.value)));
-                        setDiscountPercent(val);
-                      }}
-                      min={0}
-                      max={99}
-                      placeholder="Enter discount percentage"
-                      className="w-full px-3.5 py-2.5 pr-8 bg-[#FFFDF8] border border-[#E5D5BC] rounded-xl text-sm font-semibold text-[#C88A32] focus:outline-none focus:ring-2 focus:ring-[#6B4227]/15 focus:border-[#6B4227] transition-all"
-                    />
-                    <Percent className="h-3.5 w-3.5 text-[#8E6D53] absolute right-3 top-3 pointer-events-none" strokeWidth={1.5} />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-[#8E6D53] flex items-center gap-1">
+                      <Lock className="h-3 w-3 text-[#8E6D53]" strokeWidth={1.5} />
+                      <span>Actual HPP (Modal)</span>
+                    </label>
+                    <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      100% Real
+                    </span>
+                  </div>
+                  <div className="w-full px-3.5 py-2.5 bg-[#FAF0DA]/50 border border-[#E5D5BC] rounded-xl text-sm font-semibold text-emerald-800 flex items-center justify-between select-none">
+                    <span>{formatRange(stats.minCostPrice, stats.maxCostPrice)}</span>
                   </div>
                   <p className="text-[10px] text-[#8E6D53] mt-1 font-light">
-                    Promotional discount (0 for none)
+                    Reports record exact HPP of customer&apos;s picked items
                   </p>
                 </div>
               </div>
 
-              {/* Hidden serialized discount price */}
-              <input type="hidden" name="discountPrice" value={finalDiscountPrice ?? ''} />
-
               {/* Real-time Selling Price & Profit Margin Preview */}
               <div className="p-4 bg-[#FAF0DA]/50 border border-[#E5D5BC] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <span className="text-xs text-[#8E6D53] block font-medium">Final Customer Price:</span>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-[#8E6D53] block font-medium">
+                    Final Bundle Selling Price (After Discount):
+                  </span>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-base font-bold text-[#6B4227]">
-                      {formatRupiah(effectivePrice)}
+                      {formatRange(stats.minFinalPrice, stats.maxFinalPrice)}
                     </span>
-                    {finalDiscountPrice && (
+                    {discountAmount > 0 && (
                       <span className="text-xs text-[#8E6D53] line-through font-normal">
-                        {formatRupiah(price)}
+                        {formatRange(stats.minNormalPrice, stats.maxNormalPrice)}
                       </span>
                     )}
                   </div>
+                  <span className="text-[10px] text-[#8E6D53] block mt-0.5">
+                    Customer pays: Total Price of Selected Items − {formatRupiah(discountAmount)}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  {finalDiscountPrice && (
+                  {discountAmount > 0 && (
                     <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-right">
                       <span className="text-[11px] font-semibold text-amber-800 block">
-                        {discountPercent}% OFF Active
+                        Save {formatRupiah(discountAmount)}
                       </span>
                       <span className="text-[10px] text-amber-700 font-normal">
-                        Save {formatRupiah(savings)}
+                        Bundle Discount
                       </span>
                     </div>
                   )}
 
                   <div
                     className={`px-3.5 py-1.5 rounded-xl border text-right ${
-                      estimatedProfit >= 0
+                      stats.minProfit > 0
                         ? 'bg-emerald-50 border-emerald-200'
                         : 'bg-red-50 border-red-200'
                     }`}
                   >
                     <span
                       className={`text-[11px] font-semibold block ${
-                        estimatedProfit >= 0 ? 'text-emerald-800' : 'text-red-700'
+                        stats.minProfit > 0 ? 'text-emerald-800' : 'text-red-700'
                       }`}
                     >
-                      Est. Profit: {formatRupiah(estimatedProfit)} ({profitMarginPercent}%)
+                      Net Profit: {formatRange(stats.minProfit, stats.maxProfit)}
                     </span>
                     <span
                       className={`text-[10px] font-normal ${
-                        estimatedProfit >= 0 ? 'text-emerald-700' : 'text-red-600'
+                        stats.minProfit > 0 ? 'text-emerald-700' : 'text-red-600'
                       }`}
                     >
-                      Price ({formatRupiah(effectivePrice)}) - Cost ({formatRupiah(derivedCostPrice)})
+                      Exact margin across all choices
                     </span>
                   </div>
                 </div>

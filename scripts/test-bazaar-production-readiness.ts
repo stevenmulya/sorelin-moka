@@ -29,6 +29,7 @@ import {
   getBundleMaxStock,
   getCartProductDemand,
   canIncrementCartItem,
+  calculateBundlePriceStats,
 } from '../src/lib/bundle-config';
 import { STATUS } from '../src/lib/constants';
 import { formatRupiah } from '../src/lib/utils';
@@ -179,6 +180,60 @@ async function runBazaarProductionReadinessAudit() {
       bundle2.isBundle && bundle2.bundleQuota === 3,
       'Mixed Fixed-Product + Category Bundle created accurately',
       `Bundle ID #${bundle2.id}: ${bundle2.name}`,
+    );
+
+    // Create Bundle 3 (User's Exact Scenario: 1x Original + 1x [Choco OR Cheese] + 1x Beverage with Rp 5.000 Bundle Discount)
+    const sbOrigInit = seededProducts.find((p) => p.name === 'Salt Bread Original')!;
+    const bundle3Slots = [
+      { id: 'slot-orig', type: 'PRODUCT' as const, productId: sbOrigInit.id, productName: sbOrigInit.name, quantity: 1 },
+      {
+        id: 'slot-choco-cheese',
+        type: 'CATEGORY' as const,
+        categoryName: 'Double Chocolate / Double Cheese Honey',
+        quota: 1,
+        allowedProductNames: ['Salt Bread Double Chocolate', 'Salt Bread Double Cheese Honey'],
+      },
+      {
+        id: 'slot-drink',
+        type: 'CATEGORY' as const,
+        categoryName: 'Beverage',
+        quota: 1,
+        allowedProductNames: ['Thai Milk Tea', 'Thai Tea Honey Lemon'],
+      },
+    ];
+    const bundle3Stats = calculateBundlePriceStats(bundle3Slots, 5000, seededProducts);
+    assert(
+      bundle3Stats.minNormalPrice === 56_000 &&
+        bundle3Stats.maxNormalPrice === 56_000 &&
+        bundle3Stats.minFinalPrice === 51_000 &&
+        bundle3Stats.maxFinalPrice === 51_000 &&
+        bundle3Stats.minCostPrice === 36_000 &&
+        bundle3Stats.maxCostPrice === 37_000 &&
+        bundle3Stats.minProfit === 14_000 &&
+        bundle3Stats.maxProfit === 15_000,
+      'calculateBundlePriceStats computes exact Min-Max Price (Rp 51k), HPP (Rp 36k-37k), and Profit (Rp 14k-15k) with zero fake averages',
+      `Final Price: Rp ${bundle3Stats.minFinalPrice} | HPP: Rp ${bundle3Stats.minCostPrice}–${bundle3Stats.maxCostPrice} | Profit: Rp ${bundle3Stats.minProfit}–${bundle3Stats.maxProfit}`,
+    );
+
+    const bundle3Config = serializeBundleConfig({
+      slots: bundle3Slots,
+      discountAmount: 5000,
+    });
+    const bundle3Form = new FormData();
+    bundle3Form.set('name', 'Paket Trio Favorit (Original + Choco/Cheese + Thai Tea)');
+    bundle3Form.set('type', '');
+    bundle3Form.set('price', String(bundle3Stats.minFinalPrice));
+    bundle3Form.set('costPrice', String(bundle3Stats.minCostPrice));
+    bundle3Form.set('stock', '0');
+    bundle3Form.set('isBundle', 'true');
+    bundle3Form.set('bundleQuota', '3');
+    bundle3Form.set('availableVariants', bundle3Config);
+
+    const bundle3 = await createProductService(parseProductForm(bundle3Form), []);
+    assert(
+      bundle3.isBundle && bundle3.price === 51_000 && bundle3.costPrice === 36_000,
+      'Discount-based Specific-Options Bundle created accurately (Rp 56.000 - Rp 5.000 = Rp 51.000)',
+      `Bundle ID #${bundle3.id}: ${bundle3.name}`,
     );
 
     // Verify Inventory query excludes bundles
@@ -351,9 +406,9 @@ async function runBazaarProductionReadinessAudit() {
     // Order 1:
     // - 2x Salt Bread Original (2 * 18.000 = 36.000, COGS: 2 * 13.000 = 26.000)
     // - 1x Thai Tea Honey Lemon (1 * 15.000 = 15.000, COGS: 1 * 7.000 = 7.000)
-    // - 1x Paket Hemat A (Base 45.000 + Smoked Ham upcharge (25.000 - 18.000 = +7.000) = 52.000,
+    // - 1x Paket Hemat A (Base 45.000 + Smoked Ham upcharge (24.000 - 18.000 = +6.000) = 51.000,
     //     Components: 1x Salt Bread Original (13k) + 1x Salt Bread Smoked Ham and Cheese (20k) + 1x Thai Milk Tea (7k) -> COGS = 40.000)
-    // Expected Total Price = 36.000 + 15.000 + 52.000 = 103.000
+    // Expected Total Price = 36.000 + 15.000 + 51.000 = 102.000
     // Expected Total COGS = 26.000 + 7.000 + 40.000 = 73.000
     const order1 = await createOrder({
       customer: 'Clarissa Putri',
@@ -375,7 +430,7 @@ async function runBazaarProductionReadinessAudit() {
           quantity: 1,
           isBundle: true,
           bundleContents:
-            '1x Salt Bread Original, 1x Salt Bread Smoked Ham and Cheese (+Rp 7.000), 1x Thai Milk Tea',
+            '1x Salt Bread Original, 1x Salt Bread Smoked Ham and Cheese (+Rp 6.000), 1x Thai Milk Tea',
         },
       ],
     });
@@ -390,9 +445,9 @@ async function runBazaarProductionReadinessAudit() {
     );
 
     assert(
-      order1.amount === 103_000,
-      'Order 1 total price accurately includes base bundle + category tier upcharge (+Rp 7.000)',
-      `Expected: Rp 103.000, Actual: ${formatRupiah(order1.amount)}`,
+      order1.amount === 102_000,
+      'Order 1 total price accurately includes base bundle + category tier upcharge (+Rp 6.000)',
+      `Expected: Rp 102.000, Actual: ${formatRupiah(order1.amount)}`,
     );
     assert(
       order1TotalCogs === 73_000,
@@ -430,7 +485,7 @@ async function runBazaarProductionReadinessAudit() {
     assert(bundleLogs === 0, 'Zero duplicate InventoryLog entries created on virtual bundle product');
 
     // Order 2: Mixed Fixed-Product + Category Bundle (Bundle 2)
-    // Fixed: 1x Salt Bread Smoked Ham and Cheese (should NOT incur +7k category upcharge!)
+    // Fixed: 1x Salt Bread Smoked Ham and Cheese (should NOT incur +6k category upcharge!)
     // Category: 1x Salt Bread Double Chocolate (23k - 18k = +5k upcharge)
     // Fixed: 1x Thai Milk Tea (+0)
     // Expected Price: Base 52.000 + 5.000 = 57.000
@@ -462,6 +517,67 @@ async function runBazaarProductionReadinessAudit() {
       cashierName: 'Kasir Bazaar iPad',
       paymentMethod: 'QRIS',
       paidAmount: order2.amount,
+    });
+
+    // Security check on Bundle 3: Trying to pick "Salt Bread Garlic Butter" in the [Choco OR Cheese] slot must be rejected!
+    let disallowedSlotOptionRejected = false;
+    try {
+      await createOrder({
+        customer: 'Sneaky Buyer',
+        items: [
+          {
+            productId: bundle3.id,
+            quantity: 1,
+            isBundle: true,
+            bundleContents: '1x Salt Bread Original, 1x Salt Bread Garlic Butter, 1x Thai Milk Tea',
+          },
+        ],
+      });
+    } catch {
+      disallowedSlotOptionRejected = true;
+    }
+    assert(
+      disallowedSlotOptionRejected,
+      'Specific-Options Bundle rejects product ("Salt Bread Garlic Butter") that is not in allowedProductNames [Choco, Cheese]',
+    );
+
+    // Order 3A & 3B on Bundle 3: Verify discount-based selling price (Rp 51.000) and exact per-choice COGS (Rp 37.000 for Choco vs Rp 36.000 for Cheese)
+    const order3 = await createOrder({
+      customer: 'Nadia Kusuma',
+      items: [
+        {
+          productId: bundle3.id,
+          quantity: 1,
+          isBundle: true,
+          bundleContents: '1x Salt Bread Original, 1x Salt Bread Double Chocolate, 1x Thai Milk Tea',
+        },
+        {
+          productId: bundle3.id,
+          quantity: 1,
+          isBundle: true,
+          bundleContents: '1x Salt Bread Original, 1x Salt Bread Double Cheese Honey, 1x Thai Tea Honey Lemon',
+        },
+      ],
+    });
+    const order3WithItems = await prisma.transaction.findUnique({
+      where: { id: order3.id },
+      include: { items: true },
+    });
+    const itemChoco = order3WithItems!.items[0];
+    const itemCheese = order3WithItems!.items[1];
+    assert(
+      order3.amount === 102_000 &&
+        itemChoco.price === 51_000 &&
+        itemChoco.costPrice === 37_000 &&
+        itemCheese.price === 51_000 &&
+        itemCheese.costPrice === 36_000,
+      'Bundle 3 records exact selling price (Rp 51.000 after Rp 5.000 discount) and exact real HPP per choice (Rp 37.000 for Choco vs Rp 36.000 for Cheese)',
+      `Box 1 (Choco): Sell ${formatRupiah(itemChoco.price)}, HPP ${formatRupiah(itemChoco.costPrice)} | Box 2 (Cheese): Sell ${formatRupiah(itemCheese.price)}, HPP ${formatRupiah(itemCheese.costPrice)}`,
+    );
+    // Cancel Order 3 (Waiting Payment) so stock counts for Phase 6-8 remain unchanged
+    await cancelOrderService({
+      transactionId: order3.id,
+      reason: 'Test verification complete',
     });
 
     // -------------------------------------------------------------
@@ -546,21 +662,21 @@ async function runBazaarProductionReadinessAudit() {
 
     const summary = await summarizeShift(prisma, shift.id);
     // Paid active orders:
-    // Order 1 (Cash): Revenue = 103.000, COGS = 73.000
+    // Order 1 (Cash): Revenue = 102.000, COGS = 73.000
     // Order 2 (QRIS): Revenue = 57.000, COGS = 44.000
-    // Total Revenue = 160.000, Total COGS = 117.000, Gross Profit = 43.000
+    // Total Revenue = 159.000, Total COGS = 117.000, Gross Profit = 42.000
     // Total Expenses = 525.000 (Cash: 25.000, Transfer: 500.000)
-    // Net Profit = 43.000 - 525.000 = -482.000
-    // Expected Drawer Cash = Initial (300.000) + Cash Sales (103.000) - Cash Expenses (25.000) = 378.000
+    // Net Profit = 42.000 - 525.000 = -483.000
+    // Expected Drawer Cash = Initial (300.000) + Cash Sales (102.000) - Cash Expenses (25.000) = 377.000
     const grossProfit = summary.revenue - summary.cogs;
     const expectedCash = expectedCashOf(shift.initialCash, summary);
     assert(
-      summary.revenue === 160_000 &&
+      summary.revenue === 159_000 &&
         summary.cogs === 117_000 &&
-        grossProfit === 43_000 &&
+        grossProfit === 42_000 &&
         summary.expenses === 525_000 &&
-        summary.netProfit === -482_000 &&
-        expectedCash === 378_000,
+        summary.netProfit === -483_000 &&
+        expectedCash === 377_000,
       'Financial reconciliation (Revenue, COGS, Gross Profit, Expenses, Net Profit, Expected Drawer Cash) is 100% exact',
       `Rev: ${formatRupiah(summary.revenue)} | COGS: ${formatRupiah(summary.cogs)} | Gross: ${formatRupiah(grossProfit)} | Expected Cash: ${formatRupiah(expectedCash)}`,
     );
@@ -635,7 +751,7 @@ async function runBazaarProductionReadinessAudit() {
     // Close Shift
     const closed = await closeShiftService(shift.id, expectedCash, 'Kasir Bazaar iPad');
     assert(
-      closed.expectedCash === 378_000 && closed.actualCash === 378_000,
+      closed.expectedCash === 377_000 && closed.actualCash === 377_000,
       'Shift closed with zero cash drawer discrepancy',
     );
 

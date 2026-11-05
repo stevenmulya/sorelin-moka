@@ -4,7 +4,7 @@ import { KANBAN_STATUSES, PAID_STATUSES, PAYMENT_METHODS, STATUS, type PaymentMe
 import { UserError, cleanStr, isEmail, parseInteger, requireInteger } from '@/lib/validation';
 import { effectivePrice, formatRupiah } from '@/lib/utils';
 import { summarizeShift } from '@/lib/services/shifts';
-import { parseBundleConfig } from '@/lib/bundle-config';
+import { parseBundleConfig, getSlotCandidateProducts } from '@/lib/bundle-config';
 
 export type Db = Prisma.TransactionClient;
 
@@ -135,18 +135,6 @@ export async function buildOrder(
     allActiveProducts.filter((p) => !p.isBundle).map((p) => [p.name.toLowerCase().trim(), p])
   );
 
-  // Compute minimum effective price per product category (excluding bundles)
-  const minPriceByCategory = new Map<string, number>();
-  for (const ap of allActiveProducts) {
-    if (ap.isBundle || !ap.type?.name) continue;
-    const catName = ap.type.name.trim().toLowerCase();
-    const eff = effectivePrice(ap);
-    const currMin = minPriceByCategory.get(catName);
-    if (currMin === undefined || eff < currMin) {
-      minPriceByCategory.set(catName, eff);
-    }
-  }
-
   // Track variant physical stock demand across single items and bundles
   const variantStockDemanded = new Map<number, number>();
   // Track standalone product physical stock demand across bundle items
@@ -167,13 +155,17 @@ export async function buildOrder(
     const isBundleItem = Boolean(p.isBundle);
 
     if (isBundleItem) {
-      // Dynamic bundle box pricing: Base Box Price + Sum of Category Tier / Flavor Upcharges
+      // Dynamic bundle pricing:
+      // - If discountAmount is configured in BundleConfig: sum(chosen item prices) - discountAmount
+      // - Otherwise (legacy bundle): basePrice + sum(slot upcharges)
       const basePrice = effectivePrice(p);
       let upchargePerBox = 0;
+      let rawNormalTotalPerBox = 0;
       let bundleCogsPerBox = 0;
 
       const bundleConfig = parseBundleConfig(p.availableVariants);
       const fixedProductQtyMap = new Map<string, number>();
+      const categorySlots = bundleConfig.slots.filter((s) => s.type === 'CATEGORY');
       let expectedSlotPieces = 0;
       for (const slot of bundleConfig.slots) {
         if (slot.type === 'PRODUCT' && slot.productName) {
@@ -206,16 +198,23 @@ export async function buildOrder(
         }
       }
 
+      const remainingChoiceUnits: Array<{ nameLower: string; displayName: string; price: number }> = [];
+
       for (const f of flavors) {
         const cleanName = f.flavorName.toLowerCase().trim();
         const matchingProd = productByName.get(cleanName);
         if (matchingProd && !matchingProd.isBundle) {
           const fixedQty = fixedProductQtyMap.get(cleanName) ?? 0;
           const categorySelectedQty = Math.max(0, f.quantity - fixedQty);
-          const catName = matchingProd.type?.name?.trim().toLowerCase();
-          const minCatPrice = catName ? (minPriceByCategory.get(catName) ?? effectivePrice(matchingProd)) : effectivePrice(matchingProd);
-          const delta = Math.max(0, effectivePrice(matchingProd) - minCatPrice);
-          upchargePerBox += delta * categorySelectedQty;
+          const prodEffPrice = effectivePrice(matchingProd);
+          for (let u = 0; u < categorySelectedQty; u++) {
+            remainingChoiceUnits.push({
+              nameLower: cleanName,
+              displayName: matchingProd.name,
+              price: prodEffPrice,
+            });
+          }
+          rawNormalTotalPerBox += prodEffPrice * f.quantity;
           bundleCogsPerBox += (matchingProd.costPrice || 0) * f.quantity;
           productStockDemanded.set(
             matchingProd.id,
@@ -225,6 +224,7 @@ export async function buildOrder(
           const vo = variantByName.get(cleanName);
           if (vo) {
             upchargePerBox += (vo.bundleUpcharge || 0) * f.quantity;
+            rawNormalTotalPerBox += (vo.price || 0) * f.quantity;
             bundleCogsPerBox += (vo.costPrice || 0) * f.quantity;
             variantStockDemanded.set(vo.id, (variantStockDemanded.get(vo.id) ?? 0) + f.quantity * item.quantity);
           } else {
@@ -233,7 +233,57 @@ export async function buildOrder(
         }
       }
 
-      linePrice = basePrice + upchargePerBox;
+      // Validate that every non-fixed chosen item matches an eligible choice slot and calculate slot upcharges
+      if (categorySlots.length > 0 && remainingChoiceUnits.length > 0) {
+        const slotUnits: Array<{
+          slotLabel: string;
+          allowedNames: Set<string>;
+          minSlotPrice: number;
+        }> = [];
+
+        for (const slot of categorySlots) {
+          const candidates = getSlotCandidateProducts(slot, allActiveProducts);
+          const allowedNames = new Set(candidates.map((c) => c.name.trim().toLowerCase()));
+          const minSlotPrice =
+            candidates.length > 0
+              ? Math.min(...candidates.map((c) => effectivePrice(c)))
+              : 0;
+          const quota = Math.max(1, slot.quota || 1);
+          for (let q = 0; q < quota; q++) {
+            slotUnits.push({
+              slotLabel: slot.categoryName || 'Choice Slot',
+              allowedNames,
+              minSlotPrice,
+            });
+          }
+        }
+
+        // Match most restrictive slots first (e.g. specific allowedProductNames before full category)
+        slotUnits.sort((a, b) => a.allowedNames.size - b.allowedNames.size);
+        const usedChoiceIndices = new Set<number>();
+
+        for (const su of slotUnits) {
+          const matchIdx = remainingChoiceUnits.findIndex(
+            (u, idx) => !usedChoiceIndices.has(idx) && su.allowedNames.has(u.nameLower)
+          );
+          if (matchIdx === -1) {
+            const unmatched = remainingChoiceUnits.find((_, idx) => !usedChoiceIndices.has(idx));
+            throw new UserError(
+              `Item "${unmatched?.displayName ?? 'selection'}" is not a valid option for bundle "${p.name}" (${su.slotLabel}).`
+            );
+          }
+          usedChoiceIndices.add(matchIdx);
+          const matchedUnit = remainingChoiceUnits[matchIdx];
+          const delta = su.minSlotPrice > 0 ? Math.max(0, matchedUnit.price - su.minSlotPrice) : 0;
+          upchargePerBox += delta;
+        }
+      }
+
+      if (typeof bundleConfig.discountAmount === 'number') {
+        linePrice = Math.max(0, rawNormalTotalPerBox - bundleConfig.discountAmount);
+      } else {
+        linePrice = basePrice + upchargePerBox;
+      }
       lineCostPrice = bundleCogsPerBox > 0 ? bundleCogsPerBox : p.costPrice;
     } else {
       // Single Item Flavor / Variant Pricing

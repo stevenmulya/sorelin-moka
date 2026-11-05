@@ -5,6 +5,7 @@ export interface BundleSlotRule {
   type: BundleSlotType;
   categoryName?: string;
   quota?: number;
+  allowedProductNames?: string[];
   productId?: number;
   productName?: string;
   quantity?: number;
@@ -12,6 +13,23 @@ export interface BundleSlotRule {
 
 export interface BundleConfig {
   slots: BundleSlotRule[];
+  discountAmount?: number;
+}
+
+export interface BundlePricingProduct {
+  id?: number;
+  name: string;
+  price: number;
+  discountPrice?: number | null;
+  costPrice?: number;
+  isBundle?: boolean;
+  type?: { name: string } | null;
+}
+
+function getEffectiveItemPrice(p: { price: number; discountPrice?: number | null }): number {
+  return p.discountPrice && p.discountPrice > 0 && p.discountPrice < p.price
+    ? p.discountPrice
+    : p.price;
 }
 
 /**
@@ -31,18 +49,29 @@ export function parseBundleConfig(raw?: string | null): BundleConfig {
   // 1. Try parsing JSON format
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
-      const parsed = JSON.parse(trimmed) as { slots?: unknown[] };
+      const parsed = JSON.parse(trimmed) as { slots?: unknown[]; discountAmount?: unknown };
       if (Array.isArray(parsed.slots)) {
         const slots: BundleSlotRule[] = [];
         for (const s of parsed.slots) {
-          const item = s as Partial<BundleSlotRule>;
-          if (item.type === 'CATEGORY' && item.categoryName) {
-            slots.push({
-              id: item.id || Math.random().toString(36).substring(2, 9),
-              type: 'CATEGORY',
-              categoryName: String(item.categoryName).trim(),
-              quota: Math.max(1, Number(item.quota) || 1),
-            });
+          const item = (s ?? {}) as Partial<BundleSlotRule>;
+          if (item.type === 'CATEGORY') {
+            const allowedProductNames = Array.isArray(item.allowedProductNames)
+              ? item.allowedProductNames
+                  .map((n) => (typeof n === 'string' ? n.trim() : ''))
+                  .filter(Boolean)
+              : undefined;
+            const catName = item.categoryName ? String(item.categoryName).trim() : '';
+            if (catName || (allowedProductNames && allowedProductNames.length > 0)) {
+              slots.push({
+                id: item.id || Math.random().toString(36).substring(2, 9),
+                type: 'CATEGORY',
+                categoryName: catName || 'Custom Choice',
+                quota: Math.max(1, Number(item.quota) || 1),
+                ...(allowedProductNames && allowedProductNames.length > 0
+                  ? { allowedProductNames }
+                  : {}),
+              });
+            }
           } else if (item.type === 'PRODUCT' && item.productName) {
             slots.push({
               id: item.id || Math.random().toString(36).substring(2, 9),
@@ -53,7 +82,16 @@ export function parseBundleConfig(raw?: string | null): BundleConfig {
             });
           }
         }
-        return { slots };
+        const discountAmount =
+          typeof parsed.discountAmount === 'number' &&
+          !Number.isNaN(parsed.discountAmount) &&
+          parsed.discountAmount >= 0
+            ? Math.round(parsed.discountAmount)
+            : undefined;
+        return {
+          slots,
+          ...(discountAmount !== undefined ? { discountAmount } : {}),
+        };
       }
     } catch {
       // JSON parse error, continue to fallback
@@ -79,13 +117,152 @@ export function parseBundleConfig(raw?: string | null): BundleConfig {
 }
 
 export function serializeBundleConfig(config: BundleConfig): string {
-  const validSlots = config.slots.filter((s) => {
-    if (s.type === 'CATEGORY') return Boolean(s.categoryName && s.quota && s.quota > 0);
+  const validSlots = (config.slots ?? []).filter((s) => {
+    if (s.type === 'CATEGORY') {
+      const hasCat = Boolean(s.categoryName && s.categoryName.trim());
+      const hasCustom = Boolean(s.allowedProductNames && s.allowedProductNames.length > 0);
+      return (hasCat || hasCustom) && Boolean(s.quota && s.quota > 0);
+    }
     if (s.type === 'PRODUCT') return Boolean(s.productName && s.quantity && s.quantity > 0);
     return false;
   });
 
-  return JSON.stringify({ slots: validSlots });
+  const payload: BundleConfig = {
+    slots: validSlots,
+    ...(typeof config.discountAmount === 'number' && !Number.isNaN(config.discountAmount)
+      ? { discountAmount: Math.max(0, Math.round(config.discountAmount)) }
+      : {}),
+  };
+
+  return JSON.stringify(payload);
+}
+
+/**
+ * Resolve all non-bundle products that are eligible for a given bundle slot.
+ * - For `PRODUCT` slots: returns the single matching product.
+ * - For `CATEGORY` slots: if `allowedProductNames` is non-empty, returns only those specific products;
+ *   otherwise returns all non-bundle products matching `categoryName`.
+ */
+export function getSlotCandidateProducts<
+  T extends { name: string; isBundle?: boolean; type?: { name: string } | null }
+>(slot: BundleSlotRule, allProducts: T[]): T[] {
+  const safeProducts = (allProducts ?? []).filter((p) => p && !p.isBundle);
+  if (slot.type === 'PRODUCT') {
+    const target = (slot.productName ?? '').trim().toLowerCase();
+    if (!target) return [];
+    return safeProducts.filter((p) => (p.name ?? '').trim().toLowerCase() === target);
+  }
+
+  if (slot.allowedProductNames && slot.allowedProductNames.length > 0) {
+    const allowedSet = new Set(
+      slot.allowedProductNames.map((n) => (n ?? '').trim().toLowerCase()).filter(Boolean)
+    );
+    return safeProducts.filter((p) => allowedSet.has((p.name ?? '').trim().toLowerCase()));
+  }
+
+  const catTarget = (slot.categoryName ?? '').trim().toLowerCase();
+  if (!catTarget) return [];
+  return safeProducts.filter((p) => (p.type?.name ?? '').trim().toLowerCase() === catTarget);
+}
+
+/**
+ * Compute exact Min–Max price, cost (HPP), and profit ranges for a bundle configuration.
+ * Never uses misleading averages: every range reflects the exact minimum and maximum across
+ * all valid customer choices.
+ */
+export function calculateBundlePriceStats(
+  slots: BundleSlotRule[],
+  discountAmount: number,
+  allProducts: BundlePricingProduct[]
+) {
+  let minNormalPrice = 0;
+  let maxNormalPrice = 0;
+  let minCostPrice = 0;
+  let maxCostPrice = 0;
+  let minMarginBeforeDiscount = 0;
+  let maxMarginBeforeDiscount = 0;
+
+  const slotDetails = (slots ?? []).map((slot) => {
+    const candidates = getSlotCandidateProducts(slot, allProducts ?? []);
+    const count =
+      slot.type === 'PRODUCT'
+        ? Math.max(1, slot.quantity || 1)
+        : Math.max(1, slot.quota || 1);
+
+    if (candidates.length === 0) {
+      return {
+        slotId: slot.id,
+        count,
+        candidateCount: 0,
+        candidateNames: [] as string[],
+        minUnitCost: 0,
+        maxUnitCost: 0,
+        minTotalCost: 0,
+        maxTotalCost: 0,
+        minUnitPrice: 0,
+        maxUnitPrice: 0,
+        minTotalPrice: 0,
+        maxTotalPrice: 0,
+      };
+    }
+
+    const unitPrices = candidates.map((p) => getEffectiveItemPrice(p));
+    const unitCosts = candidates.map((p) => p.costPrice ?? 0);
+    const unitMargins = candidates.map((p) => getEffectiveItemPrice(p) - (p.costPrice ?? 0));
+
+    const minUnitPrice = Math.min(...unitPrices);
+    const maxUnitPrice = Math.max(...unitPrices);
+    const minUnitCost = Math.min(...unitCosts);
+    const maxUnitCost = Math.max(...unitCosts);
+    const minUnitMargin = Math.min(...unitMargins);
+    const maxUnitMargin = Math.max(...unitMargins);
+
+    const minTotalPrice = minUnitPrice * count;
+    const maxTotalPrice = maxUnitPrice * count;
+    const minTotalCost = minUnitCost * count;
+    const maxTotalCost = maxUnitCost * count;
+
+    minNormalPrice += minTotalPrice;
+    maxNormalPrice += maxTotalPrice;
+    minCostPrice += minTotalCost;
+    maxCostPrice += maxTotalCost;
+    minMarginBeforeDiscount += minUnitMargin * count;
+    maxMarginBeforeDiscount += maxUnitMargin * count;
+
+    return {
+      slotId: slot.id,
+      count,
+      candidateCount: candidates.length,
+      candidateNames: candidates.map((c) => c.name),
+      minUnitCost,
+      maxUnitCost,
+      minTotalCost,
+      maxTotalCost,
+      minUnitPrice,
+      maxUnitPrice,
+      minTotalPrice,
+      maxTotalPrice,
+    };
+  });
+
+  const cleanDiscount = Math.max(0, Math.round(discountAmount || 0));
+  const minFinalPrice = Math.max(0, minNormalPrice - cleanDiscount);
+  const maxFinalPrice = Math.max(0, maxNormalPrice - cleanDiscount);
+  const minProfit = minMarginBeforeDiscount - cleanDiscount;
+  const maxProfit = maxMarginBeforeDiscount - cleanDiscount;
+
+  return {
+    minNormalPrice,
+    maxNormalPrice,
+    discountAmount: cleanDiscount,
+    minFinalPrice,
+    maxFinalPrice,
+    minCostPrice,
+    maxCostPrice,
+    minProfit,
+    maxProfit,
+    slotDetails,
+  };
 }
 
 export interface StockCheckProduct {
@@ -230,7 +407,7 @@ export function canIncrementCartItem(
 
 /**
  * Compute the maximum number of boxes of a bundle that can be assembled from
- * the currently available physical stock of its component products/categories.
+ * the currently available physical stock of its component products/categories/custom option pools.
  */
 export function getBundleMaxStock(
   bundleProd: StockCheckProduct,
@@ -241,48 +418,84 @@ export function getBundleMaxStock(
   const config = parseBundleConfig(bundleProd.availableVariants);
   if (!config.slots || config.slots.length === 0) return 0;
 
+  const safeProducts = (allProducts ?? []).filter((p) => p && !p.isBundle);
   const remStock = (p: StockCheckProduct) => Math.max(0, p.stock - (cartDemand?.get(p.id) ?? 0));
 
   const fixedByProdName = new Map<string, number>();
-  const quotaByCatName = new Map<string, number>();
+  const choiceSlots: Array<{ quota: number; candidates: StockCheckProduct[]; poolKey: string }> = [];
 
   for (const slot of config.slots) {
     if (slot.type === 'PRODUCT' && slot.productName) {
       const key = slot.productName.trim().toLowerCase();
       fixedByProdName.set(key, (fixedByProdName.get(key) ?? 0) + Math.max(1, slot.quantity || 1));
-    } else if (slot.type === 'CATEGORY' && slot.categoryName) {
-      const key = slot.categoryName.trim().toLowerCase();
-      quotaByCatName.set(key, (quotaByCatName.get(key) ?? 0) + Math.max(1, slot.quota || 1));
+    } else if (slot.type === 'CATEGORY') {
+      const candidates = getSlotCandidateProducts(slot, safeProducts);
+      if (candidates.length === 0) return 0;
+      const poolKey = candidates
+        .map((c) => c.id)
+        .sort((a, b) => a - b)
+        .join(',');
+      choiceSlots.push({
+        quota: Math.max(1, slot.quota || 1),
+        candidates,
+        poolKey,
+      });
     }
   }
 
-  if (fixedByProdName.size === 0 && quotaByCatName.size === 0) return 0;
+  if (fixedByProdName.size === 0 && choiceSlots.length === 0) return 0;
 
   let maxBoxes = Infinity;
 
+  // 1. Check each fixed product requirement
   for (const [prodNameLower, reqQty] of fixedByProdName.entries()) {
-    const prod = allProducts.find(
-      (p) => !p.isBundle && p.name.trim().toLowerCase() === prodNameLower
-    );
+    const prod = safeProducts.find((p) => (p.name ?? '').trim().toLowerCase() === prodNameLower);
     if (!prod) return 0;
     const avail = remStock(prod);
     maxBoxes = Math.min(maxBoxes, Math.floor(avail / reqQty));
   }
 
-  for (const [catNameLower, reqQuota] of quotaByCatName.entries()) {
-    const catProds = allProducts.filter(
-      (p) => !p.isBundle && p.type?.name?.trim().toLowerCase() === catNameLower
-    );
-    if (catProds.length === 0) return 0;
-    const totalCatStock = catProds.reduce((sum, p) => sum + remStock(p), 0);
+  if (maxBoxes === 0) return 0;
 
-    let fixedInThisCat = 0;
-    for (const cp of catProds) {
-      fixedInThisCat += fixedByProdName.get(cp.name.trim().toLowerCase()) ?? 0;
+  // 2. Group choice slots by identical candidate pool and check each pool's stock
+  const groupedPools = new Map<string, { quota: number; candidates: StockCheckProduct[] }>();
+  for (const cs of choiceSlots) {
+    const existing = groupedPools.get(cs.poolKey);
+    if (existing) {
+      existing.quota += cs.quota;
+    } else {
+      groupedPools.set(cs.poolKey, { quota: cs.quota, candidates: cs.candidates });
     }
+  }
 
-    const totalCatNeededPerBox = reqQuota + fixedInThisCat;
-    maxBoxes = Math.min(maxBoxes, Math.floor(totalCatStock / totalCatNeededPerBox));
+  for (const pool of groupedPools.values()) {
+    const totalPoolStock = pool.candidates.reduce((sum, p) => sum + remStock(p), 0);
+    let fixedInPool = 0;
+    for (const cp of pool.candidates) {
+      fixedInPool += fixedByProdName.get((cp.name ?? '').trim().toLowerCase()) ?? 0;
+    }
+    const neededPerBox = pool.quota + fixedInPool;
+    maxBoxes = Math.min(maxBoxes, Math.floor(totalPoolStock / neededPerBox));
+  }
+
+  // 3. Also check combined union across all overlapping choice slots
+  if (groupedPools.size > 1) {
+    const unionMap = new Map<number, StockCheckProduct>();
+    let totalChoiceQuota = 0;
+    for (const pool of groupedPools.values()) {
+      totalChoiceQuota += pool.quota;
+      for (const cp of pool.candidates) {
+        unionMap.set(cp.id, cp);
+      }
+    }
+    const unionCandidates = Array.from(unionMap.values());
+    const totalUnionStock = unionCandidates.reduce((sum, p) => sum + remStock(p), 0);
+    let fixedInUnion = 0;
+    for (const cp of unionCandidates) {
+      fixedInUnion += fixedByProdName.get((cp.name ?? '').trim().toLowerCase()) ?? 0;
+    }
+    const totalUnionNeeded = totalChoiceQuota + fixedInUnion;
+    maxBoxes = Math.min(maxBoxes, Math.floor(totalUnionStock / totalUnionNeeded));
   }
 
   return maxBoxes === Infinity ? 0 : Math.max(0, maxBoxes);

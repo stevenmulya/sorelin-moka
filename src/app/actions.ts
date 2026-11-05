@@ -212,8 +212,10 @@ async function saveAll(files: File[]): Promise<string[]> {
 export async function createProduct(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
 
+  let isBundle = false
   try {
     const input = parseProductForm(formData)
+    isBundle = Boolean(input.isBundle)
     const urls = await saveAll(collectImageFiles(formData))
     try {
       await createProductService(input, urls)
@@ -226,17 +228,20 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath('/products')
+  revalidatePath('/bundles')
   revalidatePath('/inventory')
   revalidatePath('/kiosk')
-  redirect('/products')
+  redirect(isBundle ? '/bundles' : '/products')
 }
 
 export async function updateProduct(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
 
+  let isBundle = false
   try {
     const id = requireInteger(formData.get('id') as string, 'Product ID', { min: 1 })
     const input = parseProductForm(formData)
+    isBundle = Boolean(input.isBundle)
     const urls = await saveAll(collectImageFiles(formData))
     try {
       await updateProductService(id, input, urls)
@@ -249,9 +254,10 @@ export async function updateProduct(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath('/products')
+  revalidatePath('/bundles')
   revalidatePath('/inventory')
   revalidatePath('/kiosk')
-  redirect('/products')
+  redirect(isBundle ? '/bundles' : '/products')
 }
 
 export async function deleteProductImage(formData: FormData): Promise<ActionResult> {
@@ -282,6 +288,7 @@ export async function deleteProduct(formData: FormData): Promise<ActionResult> {
     return fail(e)
   }
   revalidatePath('/products')
+  revalidatePath('/bundles')
   revalidatePath('/inventory')
   revalidatePath('/kiosk')
   revalidatePath('/')

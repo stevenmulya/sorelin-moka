@@ -59,7 +59,7 @@ export const INITIAL_BAZAAR_PRODUCTS = [
   {
     name: 'Salt Bread Smoked Ham and Cheese',
     category: 'Saltbread',
-    price: 25000,
+    price: 24000,
     costPrice: 20000,
     stock: 0,
     priority: 5,

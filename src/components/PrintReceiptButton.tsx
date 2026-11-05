@@ -605,7 +605,8 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
                     className={`bp-logo-img${thermalLogo ? '' : ' bp-logo-raw'}`}
                   />
                 </div>
-                <div className="bp-store-sub">FRESHLY BAKED SALTBREAD</div>
+                <div className="bp-store-sub" style={{ marginBottom: '1px' }}>FRESHLY BAKED SALTBREAD</div>
+                <div className="bp-store-sub">Telp/WA: +6281949427737</div>
                 <div className="bp-divider" />
 
                 {/* Customer Photo (1-Bit Atkinson Dithered for Thermal Print Head) */}
@@ -715,7 +716,7 @@ export default function PrintReceiptButton({ trx, autoPrint }: { trx: PrintRecei
                 <div className="bp-footer">
                   Thank you for your visit!<br />
                   Instagram: @sorelin.bakery<br />
-                  WhatsApp: 082240491826
+                  WhatsApp: +6281949427737
                 </div>
               </div>
 

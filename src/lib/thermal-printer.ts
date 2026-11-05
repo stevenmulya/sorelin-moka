@@ -586,6 +586,7 @@ export async function buildEscPosReceipt(
   bytes.push(0x1b, 0x45, 0x01); // Bold On
   bytes.push(...encodeLine('FRESHLY BAKED SALTBREAD'));
   bytes.push(0x1b, 0x45, 0x00); // Bold Off
+  bytes.push(...encodeLine('Telp/WA: +6281949427737'));
   bytes.push(...encodeLine(divider));
 
   // 3. Optional Customer Selfie Photo (240px wide 1-bit dithered raster)
@@ -676,7 +677,7 @@ export async function buildEscPosReceipt(
   bytes.push(0x1b, 0x61, 0x01); // Center
   bytes.push(...encodeLine('Thank you for your visit!'));
   bytes.push(...encodeLine('Instagram: @sorelin.bakery'));
-  bytes.push(...encodeLine('WhatsApp: 082240491826'));
+  bytes.push(...encodeLine('WhatsApp: +6281949427737'));
 
   // 8. Feed 4 lines so user can tear paper cleanly
   bytes.push(0x0a, 0x0a, 0x0a, 0x0a);
